@@ -1,0 +1,33 @@
+SPAN_API_SHEET_GET = "api.sheet.get"
+SPAN_API_SHEET_RAW = "api.sheet.raw"
+SPAN_API_SHEET_HISTORY = "api.sheet.history"
+SPAN_API_ENGINE_VERSIONS = "api.engine.versions"
+
+SPAN_SERVICE_SHEET_GET_OR_REFRESH = "service.sheet.get_or_refresh"
+
+SPAN_CACHE_SHEET_GET = "cache.sheet.get"
+SPAN_CACHE_SHEET_PUT = "cache.sheet.put"
+SPAN_CACHE_LOCK_ACQUIRE = "cache.lock.acquire"
+SPAN_CACHE_LOCK_RELEASE = "cache.lock.release"
+SPAN_CACHE_THROTTLE_CHECK = "cache.throttle.check"
+SPAN_CACHE_THROTTLE_ARM = "cache.throttle.arm"
+
+SPAN_COLLECTOR_SNAPSHOT_BUILD = "collector.snapshot.build"
+SPAN_COLLECTOR_GITHUB_PROFILE = "collector.github.profile"
+SPAN_COLLECTOR_GITHUB_EVENTS = "collector.github.events"
+SPAN_COLLECTOR_GITHUB_CONTRIBUTIONS = "collector.github.contributions"
+SPAN_COLLECTOR_GITHUB_GISTS = "collector.github.gists"
+
+SPAN_PERSISTENCE_SNAPSHOT_INSERT = "persistence.snapshot.insert"
+SPAN_PERSISTENCE_SHEET_INSERT = "persistence.sheet.insert"
+
+METRIC_HTTP_REQUESTS_TOTAL = "http_requests_total"
+METRIC_HTTP_REQUEST_DURATION_SECONDS = "http_request_duration_seconds"
+METRIC_SHEET_CACHE_RESULT_TOTAL = "sheet_cache_result_total"
+METRIC_SHEET_ENGINE_COMPUTE_SECONDS = "sheet_engine_compute_seconds"
+METRIC_COLLECTOR_GITHUB_REQUESTS_TOTAL = "collector_github_requests_total"
+METRIC_COLLECTOR_GITHUB_DURATION_SECONDS = "collector_github_duration_seconds"
+METRIC_GITHUB_RATE_LIMIT_REMAINING = "github_rate_limit_remaining"
+METRIC_GITHUB_RATE_LIMIT_RESET_SECONDS = "github_rate_limit_reset_seconds"
+METRIC_OWNER_SNAPSHOTS_TOTAL = "owner_snapshots_total"
+METRIC_ENGINE_VERSION_INFO = "engine_version_info"
