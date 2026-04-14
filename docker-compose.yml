@@ -22,6 +22,8 @@ services:
       POSTGRES_USER: lethargy
       POSTGRES_PASSWORD: lethargy
       POSTGRES_DB: lethargy
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -32,6 +34,8 @@ services:
   redis:
     image: redis:7
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:

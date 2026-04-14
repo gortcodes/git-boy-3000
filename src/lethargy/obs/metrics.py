@@ -19,6 +19,7 @@ from lethargy.obs.names import (
     METRIC_GITHUB_RATE_LIMIT_RESET_SECONDS,
     METRIC_HTTP_REQUEST_DURATION_SECONDS,
     METRIC_HTTP_REQUESTS_TOTAL,
+    METRIC_OWNER_SNAPSHOTS_TOTAL,
 )
 
 registry = CollectorRegistry()
@@ -55,6 +56,12 @@ github_rate_limit_remaining = Gauge(
 github_rate_limit_reset_seconds = Gauge(
     METRIC_GITHUB_RATE_LIMIT_RESET_SECONDS,
     "Seconds until GitHub rate limit reset",
+    registry=registry,
+)
+owner_snapshots_total = Counter(
+    METRIC_OWNER_SNAPSHOTS_TOTAL,
+    "Snapshots persisted for owner usernames",
+    labelnames=("username",),
     registry=registry,
 )
 engine_version_info = Gauge(
