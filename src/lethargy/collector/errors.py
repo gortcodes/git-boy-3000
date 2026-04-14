@@ -9,9 +9,17 @@ class UserNotFound(GitHubError):
 class RateLimited(GitHubError):
     """GitHub returned 403 with X-RateLimit-Remaining: 0."""
 
+    def __init__(self, message: str, *, retry_after: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
 
 class RateLimitFloorHit(GitHubError):
     """Our internal rate-limit budget fell below the configured floor."""
+
+    def __init__(self, message: str, *, retry_after: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class GitHubUnavailable(GitHubError):

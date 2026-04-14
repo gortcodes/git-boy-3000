@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 
 from lethargy.api.app import create_app
 from lethargy.api.dependencies import get_replay_service, get_sheet_service
-from lethargy.engine.domain import CharacterSheet, Signals, Stat
+from lethargy.engine.domain import CharacterSheet, SheetBundle, Signals, Stat
 from lethargy.services.errors import NoHistoryAvailable, UnknownEngineVersion
-from lethargy.services.sheet_service import SheetBundle
+from lethargy.services.sheet_service import SheetEnvelope
 
 
 def _fake_sheet() -> CharacterSheet:
@@ -53,9 +53,22 @@ def _fake_signals() -> Signals:
     )
 
 
+def _fake_envelope(status: str = "miss") -> SheetEnvelope:
+    return SheetEnvelope(
+        bundle=SheetBundle(sheet=_fake_sheet(), signals=_fake_signals()),
+        cache_status=status,
+    )
+
+
 class _FakeSheetService:
-    async def get_or_refresh(self, username: str) -> SheetBundle:
-        return SheetBundle(sheet=_fake_sheet(), signals=_fake_signals())
+    def __init__(self) -> None:
+        self.force_calls = 0
+
+    async def get_or_refresh(self, username: str, *, force: bool = False) -> SheetEnvelope:
+        if force:
+            self.force_calls += 1
+            return _fake_envelope("forced")
+        return _fake_envelope("miss")
 
 
 class _FakeReplayService:
@@ -67,15 +80,17 @@ class _FakeReplayService:
         return _fake_sheet()
 
 
-def _app_with_overrides():
+def _app_with_overrides() -> tuple:
     app = create_app()
-    app.dependency_overrides[get_sheet_service] = lambda: _FakeSheetService()
+    fake_sheet_service = _FakeSheetService()
+    app.dependency_overrides[get_sheet_service] = lambda: fake_sheet_service
     app.dependency_overrides[get_replay_service] = lambda: _FakeReplayService()
-    return app
+    return app, fake_sheet_service
 
 
 def test_sheet_route_returns_character_sheet_json():
-    with TestClient(_app_with_overrides()) as client:
+    app, _ = _app_with_overrides()
+    with TestClient(app) as client:
         response = client.get("/v1/sheet/octocat")
 
     assert response.status_code == 200
@@ -85,10 +100,22 @@ def test_sheet_route_returns_character_sheet_json():
     assert set(body["stats"].keys()) == {"STR", "DEX", "CON", "INT", "WIS", "CHA"}
     assert body["stats"]["STR"]["value"] == 12
     assert response.headers["x-engine-version"] == "1"
+    assert response.headers["x-cache-status"] == "miss"
+
+
+def test_sheet_route_force_flag_reaches_service():
+    app, fake = _app_with_overrides()
+    with TestClient(app) as client:
+        response = client.get("/v1/sheet/octocat?force=true")
+
+    assert response.status_code == 200
+    assert response.headers["x-cache-status"] == "forced"
+    assert fake.force_calls == 1
 
 
 def test_raw_route_includes_signals_breakdown():
-    with TestClient(_app_with_overrides()) as client:
+    app, _ = _app_with_overrides()
+    with TestClient(app) as client:
         response = client.get("/v1/sheet/octocat/raw")
 
     assert response.status_code == 200
@@ -100,23 +127,25 @@ def test_raw_route_includes_signals_breakdown():
 
 
 def test_recompute_route_returns_sheet_for_owner():
-    with TestClient(_app_with_overrides()) as client:
+    app, _ = _app_with_overrides()
+    with TestClient(app) as client:
         response = client.post("/v1/sheet/owneruser/recompute?engine=1")
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["engine_version"] == 1
+    assert response.json()["engine_version"] == 1
 
 
 def test_recompute_route_returns_404_for_non_owner():
-    with TestClient(_app_with_overrides()) as client:
+    app, _ = _app_with_overrides()
+    with TestClient(app) as client:
         response = client.post("/v1/sheet/stranger/recompute?engine=1")
 
     assert response.status_code == 404
 
 
 def test_recompute_route_returns_400_for_unknown_engine_version():
-    with TestClient(_app_with_overrides()) as client:
+    app, _ = _app_with_overrides()
+    with TestClient(app) as client:
         response = client.post("/v1/sheet/owneruser/recompute?engine=99")
 
     assert response.status_code == 400

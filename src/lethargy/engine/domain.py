@@ -54,3 +54,9 @@ class CharacterSheet:
     computed_at: datetime
     stats: dict[str, Stat]
     flavor: dict
+
+
+@dataclass(frozen=True)
+class SheetBundle:
+    sheet: CharacterSheet
+    signals: Signals

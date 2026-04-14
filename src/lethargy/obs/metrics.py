@@ -20,6 +20,8 @@ from lethargy.obs.names import (
     METRIC_HTTP_REQUEST_DURATION_SECONDS,
     METRIC_HTTP_REQUESTS_TOTAL,
     METRIC_OWNER_SNAPSHOTS_TOTAL,
+    METRIC_SHEET_CACHE_RESULT_TOTAL,
+    METRIC_SHEET_ENGINE_COMPUTE_SECONDS,
 )
 
 registry = CollectorRegistry()
@@ -34,6 +36,18 @@ http_request_duration_seconds = Histogram(
     METRIC_HTTP_REQUEST_DURATION_SECONDS,
     "HTTP request duration (seconds)",
     labelnames=("route",),
+    registry=registry,
+)
+sheet_cache_result_total = Counter(
+    METRIC_SHEET_CACHE_RESULT_TOTAL,
+    "Sheet cache resolution result",
+    labelnames=("result",),
+    registry=registry,
+)
+sheet_engine_compute_seconds = Histogram(
+    METRIC_SHEET_ENGINE_COMPUTE_SECONDS,
+    "Engine compute duration (seconds)",
+    labelnames=("version",),
     registry=registry,
 )
 collector_github_requests_total = Counter(

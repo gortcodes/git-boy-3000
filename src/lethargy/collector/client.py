@@ -10,6 +10,7 @@ from lethargy.collector.errors import (
     RateLimited,
     UserNotFound,
 )
+from lethargy.collector.rate_limit import RateLimitState
 from lethargy.config import Settings
 from lethargy.obs import metrics as obs_metrics
 from lethargy.obs.names import (
@@ -52,10 +53,12 @@ class GitHubClient:
         settings: Settings,
         http: httpx.AsyncClient,
         etag_cache: GitHubEtagCache,
+        rate_limit_state: RateLimitState,
     ) -> None:
         self._settings = settings
         self._http = http
         self._etag_cache = etag_cache
+        self._rate_limit = rate_limit_state
 
     async def get_profile(self, username: str) -> dict[str, Any]:
         with tracer.start_as_current_span(SPAN_COLLECTOR_GITHUB_PROFILE):
@@ -94,6 +97,8 @@ class GitHubClient:
         endpoint_label: str,
         not_found_exc: type[Exception] = GitHubUnavailable,
     ) -> Any:
+        self._rate_limit.check_floor()
+
         headers = self._auth_headers()
         cached = await self._etag_cache.get(url)
         if cached is not None:
@@ -105,7 +110,7 @@ class GitHubClient:
             _inc_requests(endpoint_label, "error", "miss")
             raise GitHubUnavailable(str(exc)) from exc
 
-        _update_rate_limit(response)
+        self._update_rate_limit(response)
 
         status = response.status_code
 
@@ -127,12 +132,17 @@ class GitHubClient:
 
         if status == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
             _inc_requests(endpoint_label, "403", "miss")
-            raise RateLimited("GitHub rate limit exhausted")
+            raise RateLimited(
+                "GitHub rate limit exhausted",
+                retry_after=_reset_delta(response),
+            )
 
         _inc_requests(endpoint_label, str(status), "miss")
         raise GitHubUnavailable(f"unexpected status {status} from {url}")
 
     async def _graphql(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._rate_limit.check_floor()
+
         headers = self._auth_headers()
         try:
             response = await self._http.post(
@@ -142,7 +152,7 @@ class GitHubClient:
             _inc_requests("graphql", "error", "miss")
             raise GitHubUnavailable(str(exc)) from exc
 
-        _update_rate_limit(response)
+        self._update_rate_limit(response)
         status = response.status_code
 
         if status == 401:
@@ -151,7 +161,10 @@ class GitHubClient:
 
         if status == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
             _inc_requests("graphql", "403", "miss")
-            raise RateLimited("GitHub graphql rate limit exhausted")
+            raise RateLimited(
+                "GitHub graphql rate limit exhausted",
+                retry_after=_reset_delta(response),
+            )
 
         if status != 200:
             _inc_requests("graphql", str(status), "miss")
@@ -171,6 +184,23 @@ class GitHubClient:
             headers["Authorization"] = f"Bearer {self._settings.github_token}"
         return headers
 
+    def _update_rate_limit(self, response: httpx.Response) -> None:
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        reset = response.headers.get("X-RateLimit-Reset")
+        if remaining is None or not remaining.isdigit():
+            return
+        remaining_int = int(remaining)
+        obs_metrics.github_rate_limit_remaining.set(remaining_int)
+
+        reset_int: int | None = None
+        if reset is not None and reset.isdigit():
+            reset_int = int(reset)
+            delta = max(0.0, reset_int - time.time())
+            obs_metrics.github_rate_limit_reset_seconds.set(delta)
+
+        if reset_int is not None:
+            self._rate_limit.update(remaining=remaining_int, reset=reset_int)
+
 
 def _inc_requests(endpoint: str, status: str, cache: str) -> None:
     obs_metrics.collector_github_requests_total.labels(
@@ -178,11 +208,8 @@ def _inc_requests(endpoint: str, status: str, cache: str) -> None:
     ).inc()
 
 
-def _update_rate_limit(response: httpx.Response) -> None:
-    remaining = response.headers.get("X-RateLimit-Remaining")
+def _reset_delta(response: httpx.Response) -> int | None:
     reset = response.headers.get("X-RateLimit-Reset")
-    if remaining is not None and remaining.isdigit():
-        obs_metrics.github_rate_limit_remaining.set(int(remaining))
-    if reset is not None and reset.isdigit():
-        delta = max(0.0, int(reset) - time.time())
-        obs_metrics.github_rate_limit_reset_seconds.set(delta)
+    if reset is None or not reset.isdigit():
+        return None
+    return max(0, int(reset) - int(time.time()))

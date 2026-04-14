@@ -35,6 +35,7 @@ class Settings:
     otel_exporter_otlp_endpoint: str | None
     log_level: str
     env: str
+    privacy_contact: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -51,6 +52,7 @@ class Settings:
             otel_exporter_otlp_endpoint=otlp,
             log_level=_env("LETHARGY_LOG_LEVEL", "INFO"),
             env=_env("LETHARGY_ENV", "dev"),
+            privacy_contact=_env("LETHARGY_PRIVACY_CONTACT", ""),
         )
 
 

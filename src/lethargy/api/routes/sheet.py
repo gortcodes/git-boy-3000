@@ -9,31 +9,46 @@ from lethargy.api.dependencies import (
     get_settings_dep,
     get_sheet_service,
 )
-from lethargy.collector.errors import GitHubUnavailable, RateLimited, UserNotFound
+from lethargy.collector.errors import (
+    GitHubUnavailable,
+    RateLimited,
+    RateLimitFloorHit,
+    UserNotFound,
+)
 from lethargy.config import Settings
 from lethargy.engine.domain import CharacterSheet
 from lethargy.persistence.db import Database
 from lethargy.persistence.sheets import list_sheets_for_user
 from lethargy.services.errors import NoHistoryAvailable, UnknownEngineVersion
 from lethargy.services.replay_service import ReplayService
-from lethargy.services.sheet_service import SheetService
+from lethargy.services.sheet_service import SheetEnvelope, SheetService
 
 USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
 
 router = APIRouter(prefix="/v1/sheet", tags=["sheet"])
 
 
-def _set_sheet_headers(response: Response, sheet: CharacterSheet) -> None:
+def _set_sheet_headers(response: Response, envelope: SheetEnvelope) -> None:
+    sheet = envelope.bundle.sheet
     response.headers["X-Engine-Version"] = str(sheet.engine_version)
     response.headers["X-Raw-Schema-Version"] = str(sheet.raw_schema_version)
     response.headers["X-Fetched-At"] = sheet.fetched_at.isoformat()
+    response.headers["X-Cache-Status"] = envelope.cache_status
 
 
 def _translate_collector_errors(exc: Exception) -> HTTPException:
     if isinstance(exc, UserNotFound):
         return HTTPException(status_code=404, detail="user not found")
     if isinstance(exc, RateLimited):
-        return HTTPException(status_code=429, detail="github rate limited")
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else {}
+        return HTTPException(
+            status_code=429, detail="github rate limited", headers=headers
+        )
+    if isinstance(exc, RateLimitFloorHit):
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else {}
+        return HTTPException(
+            status_code=503, detail="rate limit floor hit", headers=headers
+        )
     if isinstance(exc, GitHubUnavailable):
         return HTTPException(status_code=502, detail=f"github unavailable: {exc}")
     raise exc
@@ -44,14 +59,15 @@ async def get_sheet(
     username: Annotated[str, Path(pattern=USERNAME_PATTERN)],
     service: Annotated[SheetService, Depends(get_sheet_service)],
     response: Response,
+    force: Annotated[bool, Query()] = False,
 ) -> dict:
     try:
-        bundle = await service.get_or_refresh(username)
-    except (UserNotFound, RateLimited, GitHubUnavailable) as exc:
+        envelope = await service.get_or_refresh(username, force=force)
+    except (UserNotFound, RateLimited, RateLimitFloorHit, GitHubUnavailable) as exc:
         raise _translate_collector_errors(exc) from None
 
-    _set_sheet_headers(response, bundle.sheet)
-    return _to_response(bundle.sheet)
+    _set_sheet_headers(response, envelope)
+    return _to_response(envelope.bundle.sheet)
 
 
 @router.get("/{username}/raw")
@@ -59,15 +75,16 @@ async def get_sheet_raw(
     username: Annotated[str, Path(pattern=USERNAME_PATTERN)],
     service: Annotated[SheetService, Depends(get_sheet_service)],
     response: Response,
+    force: Annotated[bool, Query()] = False,
 ) -> dict:
     try:
-        bundle = await service.get_or_refresh(username)
-    except (UserNotFound, RateLimited, GitHubUnavailable) as exc:
+        envelope = await service.get_or_refresh(username, force=force)
+    except (UserNotFound, RateLimited, RateLimitFloorHit, GitHubUnavailable) as exc:
         raise _translate_collector_errors(exc) from None
 
-    _set_sheet_headers(response, bundle.sheet)
-    body = _to_response(bundle.sheet)
-    body["signals"] = asdict(bundle.signals)
+    _set_sheet_headers(response, envelope)
+    body = _to_response(envelope.bundle.sheet)
+    body["signals"] = asdict(envelope.bundle.signals)
     return body
 
 
@@ -85,7 +102,9 @@ async def recompute_sheet(
     except NoHistoryAvailable:
         raise HTTPException(status_code=404, detail="no history for this user") from None
 
-    _set_sheet_headers(response, sheet)
+    response.headers["X-Engine-Version"] = str(sheet.engine_version)
+    response.headers["X-Raw-Schema-Version"] = str(sheet.raw_schema_version)
+    response.headers["X-Fetched-At"] = sheet.fetched_at.isoformat()
     return _to_response(sheet)
 
 

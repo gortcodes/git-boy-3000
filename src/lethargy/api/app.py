@@ -5,9 +5,13 @@ from fastapi import FastAPI
 
 from lethargy.api.routes import engine, health, sheet
 from lethargy.cache.github_etag import GitHubEtagCache
+from lethargy.cache.lock import Lock
 from lethargy.cache.redis import RedisClient
+from lethargy.cache.sheet import SheetCache
+from lethargy.cache.throttle import Throttle
 from lethargy.collector.client import GitHubClient
 from lethargy.collector.fetch import SnapshotBuilder
+from lethargy.collector.rate_limit import RateLimitState
 from lethargy.config import Settings, get_settings
 from lethargy.obs import logging as obs_logging
 from lethargy.obs import metrics as obs_metrics
@@ -24,17 +28,27 @@ async def lifespan(app: FastAPI):
     http = httpx.AsyncClient(timeout=10.0)
     redis_client = RedisClient.from_settings(settings)
     etag_cache = GitHubEtagCache(redis_client)
+    rate_limit_state = RateLimitState(floor=settings.rate_limit_floor)
     github_client = GitHubClient(
         settings=settings,
         http=http,
         etag_cache=etag_cache,
+        rate_limit_state=rate_limit_state,
     )
     snapshot_builder = SnapshotBuilder(github_client)
     database = Database.from_settings(settings)
+    sheet_cache = SheetCache(redis_client)
+    lock = Lock(redis_client)
+    throttle = Throttle(redis_client, ttl_seconds=settings.refresh_throttle_seconds)
     sheet_service = SheetService(
         snapshot_builder=snapshot_builder,
         database=database,
+        sheet_cache=sheet_cache,
+        lock=lock,
+        throttle=throttle,
         owner_usernames=settings.owner_usernames,
+        fresh_ttl_seconds=settings.sheet_fresh_ttl_seconds,
+        stale_ttl_seconds=settings.sheet_stale_ttl_seconds,
     )
     replay_service = ReplayService(
         database=database,
@@ -44,9 +58,13 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
     app.state.http_client = http
     app.state.redis_client = redis_client
+    app.state.rate_limit_state = rate_limit_state
     app.state.github_client = github_client
     app.state.snapshot_builder = snapshot_builder
     app.state.database = database
+    app.state.sheet_cache = sheet_cache
+    app.state.lock = lock
+    app.state.throttle = throttle
     app.state.sheet_service = sheet_service
     app.state.replay_service = replay_service
 
@@ -66,6 +84,7 @@ def create_app() -> FastAPI:
 
     obs_metrics.instrument(app)
     obs_tracing.instrument(app, settings)
+    obs_logging.instrument(app)
 
     app.include_router(health.router)
     app.include_router(sheet.router)
