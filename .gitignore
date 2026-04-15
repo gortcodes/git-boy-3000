@@ -20,5 +20,6 @@ htmlcov/
 
 .vscode/
 .idea/
+.claude/
 *.swp
 .DS_Store
