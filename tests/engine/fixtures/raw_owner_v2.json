@@ -1,0 +1,101 @@
+{
+  "username": "owner",
+  "fetched_at": "2026-04-15T00:00:00Z",
+  "raw_schema_version": 2,
+  "profile": {
+    "login": "owner",
+    "created_at": "2018-01-01T00:00:00Z"
+  },
+  "events": [
+    {
+      "type": "PushEvent",
+      "created_at": "2026-04-13T10:00:00Z",
+      "repo": {"name": "owner/infra-monorepo"},
+      "payload": {
+        "commits": [
+          {"sha": "a", "message": "Add terraform module\n\nCo-Authored-By: Claude <noreply@anthropic.com>"},
+          {"sha": "b", "message": "Update helm chart"}
+        ]
+      }
+    },
+    {
+      "type": "PullRequestReviewEvent",
+      "created_at": "2026-04-13T11:00:00Z",
+      "repo": {"name": "external-org/libfoo"}
+    },
+    {
+      "type": "IssueCommentEvent",
+      "created_at": "2026-04-14T09:00:00Z",
+      "repo": {"name": "other-org/openstuff"}
+    }
+  ],
+  "contributions": {
+    "totalCommitContributions": 500,
+    "totalIssueContributions": 20,
+    "totalPullRequestContributions": 30,
+    "totalPullRequestReviewContributions": 75,
+    "restrictedContributionsCount": 100,
+    "contributionCalendar": {
+      "weeks": [
+        {
+          "contributionDays": [
+            {"date": "2026-04-06", "contributionCount": 3},
+            {"date": "2026-04-07", "contributionCount": 2},
+            {"date": "2026-04-08", "contributionCount": 4},
+            {"date": "2026-04-09", "contributionCount": 3},
+            {"date": "2026-04-10", "contributionCount": 2},
+            {"date": "2026-04-11", "contributionCount": 1},
+            {"date": "2026-04-12", "contributionCount": 2}
+          ]
+        },
+        {
+          "contributionDays": [
+            {"date": "2026-04-13", "contributionCount": 5},
+            {"date": "2026-04-14", "contributionCount": 3},
+            {"date": "2026-04-15", "contributionCount": 1}
+          ]
+        }
+      ]
+    }
+  },
+  "gists_meta": {"count": 3},
+  "repos": [
+    {"full_name": "owner/infra-monorepo", "fork": false},
+    {"full_name": "owner/api-service", "fork": false},
+    {"full_name": "owner/ansible-roles", "fork": false}
+  ],
+  "repo_trees": {
+    "owner/infra-monorepo": [
+      "README.md",
+      "terraform/main.tf",
+      "terraform/variables.tf",
+      "helm/myapp/Chart.yaml",
+      "helm/myapp/values.yaml",
+      "Dockerfile",
+      ".github/workflows/ci.yml",
+      "prometheus.yml",
+      "grafana/dashboards/overview.json",
+      "otel-collector.yaml",
+      "CLAUDE.md"
+    ],
+    "owner/api-service": [
+      "README.md",
+      "src/main.py",
+      "src/api.py",
+      "Dockerfile",
+      ".github/workflows/test.yml",
+      ".github/workflows/deploy.yml",
+      "Jenkinsfile"
+    ],
+    "owner/ansible-roles": [
+      "README.md",
+      "roles/webserver/tasks/main.yml",
+      ".gitlab-ci.yml"
+    ]
+  },
+  "repo_languages": {
+    "owner/infra-monorepo": {"HCL": 12000, "Python": 4000, "YAML": 3000},
+    "owner/api-service": {"Python": 15000, "JavaScript": 2000},
+    "owner/ansible-roles": {"YAML": 8000}
+  }
+}

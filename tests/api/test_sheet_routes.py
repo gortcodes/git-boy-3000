@@ -155,4 +155,4 @@ def test_engine_versions_endpoint():
     with TestClient(create_app()) as client:
         response = client.get("/v1/engine/versions")
     assert response.status_code == 200
-    assert response.json() == {"latest": 1, "known": [1]}
+    assert response.json() == {"latest": 1, "known": [1, 2]}
