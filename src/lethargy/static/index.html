@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lethargy.io — dev character sheet</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>lethargy.io</h1>
+      <p class="tagline">
+        GitHub public activity &rarr; character sheet. API-first engineering instrument.
+      </p>
+    </header>
+
+    <main>
+      <section class="lookup">
+        <form id="lookup-form">
+          <input
+            id="username-input"
+            type="text"
+            placeholder="GitHub username"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+          <button type="submit">Roll character</button>
+        </form>
+        <p id="status" class="status"></p>
+      </section>
+
+      <section id="sheet" class="sheet hidden">
+        <header class="sheet-header">
+          <h2 id="sheet-username"></h2>
+          <div class="sheet-meta">
+            <span id="sheet-engine-version"></span>
+            <span id="sheet-cache-status"></span>
+            <button id="share-button" type="button">Share link</button>
+          </div>
+        </header>
+        <div id="stats-grid" class="stats-grid"></div>
+
+        <details class="flavor">
+          <summary>Flavor &amp; streaks</summary>
+          <div id="flavor-body"></div>
+        </details>
+
+        <details class="raw">
+          <summary>Raw signals (engine input)</summary>
+          <pre id="raw-body"></pre>
+        </details>
+      </section>
+
+      <section class="portfolio">
+        <h2>Other projects</h2>
+        <!-- Edit this list: fill in your own portfolio links -->
+        <ul>
+          <li><a href="/docs">OpenAPI docs (FastAPI)</a> &mdash; live API surface for this site</li>
+          <li><a href="https://github.com/" rel="noopener">GitHub profile</a> &mdash; other repos</li>
+          <li>Placeholder &mdash; more projects go here</li>
+        </ul>
+      </section>
+
+      <section class="about">
+        <h2>How it works</h2>
+        <p>
+          The service pulls three public GitHub sources (profile, public events, GraphQL
+          contribution calendar) through an ETag-aware collector, extracts signals with a
+          pure versioned engine, and scores six stats. A Redis-backed cache serves repeat
+          lookups with stale-while-revalidate; owner snapshots persist to Postgres for
+          history and replay. Everything is traced with OpenTelemetry and observed through
+          Prometheus metrics and a Grafana dashboard.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <a href="/docs">API docs</a>
+      <span>&middot;</span>
+      <a href="/privacy">Privacy &amp; data removal</a>
+      <span>&middot;</span>
+      <a href="/v1/engine/versions">Engine versions</a>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

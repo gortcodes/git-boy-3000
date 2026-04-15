@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from lethargy.api.routes import engine, health, sheet
 from lethargy.cache.github_etag import GitHubEtagCache
@@ -89,4 +92,13 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(sheet.router)
     app.include_router(engine.router)
+
+    static_dir = Path(__file__).resolve().parent.parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def index() -> FileResponse:
+            return FileResponse(static_dir / "index.html")
+
     return app
