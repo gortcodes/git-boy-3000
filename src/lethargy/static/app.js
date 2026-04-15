@@ -1,20 +1,161 @@
 "use strict";
 
+// v2 SPECIAL order (Fallout-style)
+const STAT_ORDER_V2 = ["STR", "PER", "END", "CHA", "INT", "AGI", "LUCK"];
+// v1 order (D&D-ish)
 const STAT_ORDER_V1 = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
-const STAT_ORDER_V2 = ["STR", "AGI", "END", "INT", "PER", "CHA", "LUCK"];
 
+const STAT_DISPLAY_NAMES_V2 = {
+  STR: "Strength",
+  PER: "Perception",
+  END: "Endurance",
+  CHA: "Charisma",
+  INT: "Intelligence",
+  AGI: "Agility",
+  LUCK: "Luck",
+};
+
+const STAT_DISPLAY_NAMES_V1 = {
+  STR: "Strength",
+  DEX: "Dexterity",
+  CON: "Constitution",
+  INT: "Intelligence",
+  WIS: "Wisdom",
+  CHA: "Charisma",
+};
+
+const STAT_DESCRIPTIONS_V2 = {
+  STR: "Raw infrastructure presence. Rolls helm charts, terraform modules, and Dockerfiles across your public repos. High STR means you build the things that keep other things running.",
+  PER: "Watching the systems that watch the systems. Prometheus configs, Grafana dashboards, OpenTelemetry pipelines. High PER means you see your own failures before your users do.",
+  END: "Long-haul presence in the git log. Commit streaks, PR throughput, and raw yearly commit count, each on a log2 curve. END rewards showing up, not sprinting.",
+  CHA: "Working with and through other humans. PR reviews, issue comments, and activity on repos you don't own. High CHA means you block on nothing and unblock everyone.",
+  INT: "Programming breadth by primary language. Rolls Python, JavaScript, and TypeScript repositories — whichever language wins the byte count in a repo, counts once.",
+  AGI: "Automation reflexes. GitHub Actions workflows, Jenkins pipelines, GitLab CI configs. High AGI means a machine does the boring work for you.",
+  LUCK: "Rolling with machines. Commits with AI co-author trailers, CLAUDE.md files, cursor and copilot instructions. The stat that wasn't possible two years ago.",
+};
+
+const STAT_DESCRIPTIONS_V1 = {
+  STR: "Raw commit volume over the last year, squash-safe via the GraphQL authoritative count.",
+  DEX: "Recent cadence and current streak length.",
+  CON: "Sustained, low-variance weekly activity.",
+  INT: "Breadth across distinct public repos touched, plus public gist count.",
+  WIS: "Seniority weighted by review-to-commit ratio.",
+  CHA: "Collaboration on repos you do not own.",
+};
+
+const SUB_STAT_DESCRIPTIONS = {
+  helm: {
+    parent: "STR",
+    text: "Public repos containing a Chart.yaml or values.yaml file.",
+  },
+  terraform: {
+    parent: "STR",
+    text: "Public repos containing any .tf or .tfvars file.",
+  },
+  docker: {
+    parent: "STR",
+    text: "Public repos containing a Dockerfile.",
+  },
+  prometheus: {
+    parent: "PER",
+    text: "Public repos containing prometheus.yml or a prometheus/ directory.",
+  },
+  grafana: {
+    parent: "PER",
+    text: "Public repos with a grafana/ directory or embedded dashboard JSON.",
+  },
+  otel: {
+    parent: "PER",
+    text: "Public repos with otel-* or opentelemetry-* YAML configs.",
+  },
+  streak: {
+    parent: "END",
+    text: "round(log2(longest_streak_days + 1) × 0.5). Long streak = log curve points.",
+  },
+  commits: {
+    parent: "END",
+    text: "round(log2(total_commit_contributions + 1) × 1.0). Year-over-year commit volume from GraphQL.",
+  },
+  prs: {
+    parent: "END",
+    text: "round(log2(total_pr_contributions + 1) × 1.5). PRs weigh more than raw commits.",
+  },
+  reviews: {
+    parent: "CHA",
+    text: "round(log2(total_pr_review_contributions + 1) × 1.2). PR reviews on any repo.",
+  },
+  issue_comments: {
+    parent: "CHA",
+    text: "round(log2(issue_comment_events + 1) × 0.8). Issue comments in the recent public event window.",
+  },
+  external_repos: {
+    parent: "CHA",
+    text: "Distinct non-owned repos you touched in your recent public events. Raw count.",
+  },
+  python: {
+    parent: "INT",
+    text: "Public repos where Python is the primary language by byte count.",
+  },
+  javascript: {
+    parent: "INT",
+    text: "Public repos where JavaScript is the primary language by byte count.",
+  },
+  typescript: {
+    parent: "INT",
+    text: "Public repos where TypeScript is the primary language by byte count.",
+  },
+  github_actions: {
+    parent: "AGI",
+    text: "Public repos with any .github/workflows/*.yml or .yaml file.",
+  },
+  gitlab_ci: {
+    parent: "AGI",
+    text: "Public repos containing a .gitlab-ci.yml file.",
+  },
+  jenkins: {
+    parent: "AGI",
+    text: "Public repos containing a Jenkinsfile.",
+  },
+  ai_trailers: {
+    parent: "LUCK",
+    text: "Push-event commits whose message contains a Co-Authored-By: Claude/Copilot/ChatGPT/GPT trailer.",
+  },
+  ai_configs: {
+    parent: "LUCK",
+    text: "Public repos containing CLAUDE.md, .cursorrules, or .github/copilot-instructions.md.",
+  },
+};
+
+// === DOM refs ===
 const form = document.getElementById("lookup-form");
 const usernameInput = document.getElementById("username-input");
 const statusEl = document.getElementById("status");
 const sheetEl = document.getElementById("sheet");
-const sheetUsernameEl = document.getElementById("sheet-username");
-const sheetEngineVersionEl = document.getElementById("sheet-engine-version");
-const sheetCacheStatusEl = document.getElementById("sheet-cache-status");
+const characterUsernameEl = document.getElementById("character-username");
+const characterClassEl = document.getElementById("character-class");
+const characterLevelEl = document.getElementById("character-level");
+const cacheStatusEl = document.getElementById("cache-status");
 const shareButton = document.getElementById("share-button");
-const statsGridEl = document.getElementById("stats-grid");
-const flavorBodyEl = document.getElementById("flavor-body");
-const rawBodyEl = document.getElementById("raw-body");
 
+const tabSpecialEl = document.getElementById("tab-special");
+const tabSkillsEl = document.getElementById("tab-skills");
+const tabButtons = document.querySelectorAll(".pipboy-tabs .tab");
+
+const statListEl = document.getElementById("stat-list");
+const statDetailNameEl = document.getElementById("stat-detail-name");
+const statDetailDescEl = document.getElementById("stat-detail-desc");
+const statDetailSubsEl = document.getElementById("stat-detail-subs");
+const avatarEl = document.getElementById("avatar");
+
+const skillListEl = document.getElementById("skill-list");
+const skillDetailNameEl = document.getElementById("skill-detail-name");
+const skillDetailDescEl = document.getElementById("skill-detail-desc");
+const skillDetailRatingEl = document.getElementById("skill-detail-rating");
+const skillDetailParentEl = document.getElementById("skill-detail-parent");
+
+let currentData = null;
+
+// === Form + share ===
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   const username = usernameInput.value.trim();
@@ -23,21 +164,23 @@ form.addEventListener("submit", (event) => {
 });
 
 shareButton.addEventListener("click", async () => {
-  const username = usernameInput.value.trim();
-  if (!username) return;
-  const url = `${window.location.origin}/?u=${encodeURIComponent(username)}`;
+  if (!currentData) return;
+  const url = `${window.location.origin}/?u=${encodeURIComponent(
+    currentData.username
+  )}`;
   try {
     await navigator.clipboard.writeText(url);
     const original = shareButton.textContent;
-    shareButton.textContent = "Copied!";
+    shareButton.textContent = "COPIED!";
     setTimeout(() => {
       shareButton.textContent = original;
     }, 1500);
   } catch (err) {
-    setStatus(`could not copy: ${err.message}`, true);
+    setStatus(`clipboard failed: ${err.message}`, true);
   }
 });
 
+// Auto-load via ?u=
 const params = new URLSearchParams(window.location.search);
 const initialUsername = params.get("u");
 if (initialUsername) {
@@ -45,8 +188,22 @@ if (initialUsername) {
   loadSheet(initialUsername);
 }
 
+// === Tab switching ===
+tabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    switchTab(btn.dataset.tab);
+  });
+});
+
+function switchTab(tab) {
+  tabButtons.forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  tabSpecialEl.classList.toggle("hidden", tab !== "special");
+  tabSkillsEl.classList.toggle("hidden", tab !== "skills");
+}
+
+// === Loading ===
 async function loadSheet(username) {
-  setStatus(`looking up ${username}...`);
+  setStatus(`ROLLING ${username.toUpperCase()}...`);
   sheetEl.classList.add("hidden");
 
   try {
@@ -56,9 +213,12 @@ async function loadSheet(username) {
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       const detail = body.detail || `HTTP ${response.status}`;
-      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      throw new Error(
+        typeof detail === "string" ? detail : JSON.stringify(detail)
+      );
     }
     const data = await response.json();
+    currentData = data;
     renderSheet(data, response.headers);
     const cacheStatus = response.headers.get("x-cache-status") || "?";
     setStatus(`engine v${data.engine_version} · ${cacheStatus}`);
@@ -72,112 +232,160 @@ function setStatus(text, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
+// === Rendering ===
 function renderSheet(data, headers) {
   sheetEl.classList.remove("hidden");
-  sheetUsernameEl.textContent = data.username;
-  sheetCacheStatusEl.textContent = `cache: ${headers.get("x-cache-status") || "?"}`;
 
-  if (data.engine_version === 2) {
-    renderSheetV2(data);
+  const isV2 = data.engine_version === 2;
+  const klass = data.class_name || (isV2 ? "Engineer" : "Initiate");
+
+  characterUsernameEl.textContent = data.username;
+  characterClassEl.textContent = klass;
+
+  if (isV2) {
+    characterLevelEl.textContent = `LVL ${data.character_level}`;
   } else {
-    renderSheetV1(data);
+    characterLevelEl.textContent = `ENGINE v${data.engine_version}`;
+  }
+
+  const cacheStatus = headers.get("x-cache-status") || "?";
+  cacheStatusEl.textContent = `cache: ${cacheStatus}`;
+
+  // GitHub avatar, CSS-filtered to Pip-Boy green
+  avatarEl.src = `https://github.com/${encodeURIComponent(data.username)}.png?size=200`;
+  avatarEl.alt = `${data.username} avatar`;
+
+  // SPECIAL tab
+  renderSpecial(data);
+
+  // SKILLS tab (v2 only)
+  const skillsBtn = document.querySelector('[data-tab="skills"]');
+  if (isV2) {
+    if (skillsBtn) skillsBtn.style.display = "";
+    renderSkills(data);
+  } else {
+    if (skillsBtn) skillsBtn.style.display = "none";
+    switchTab("special");
   }
 }
 
-function renderSheetV1(data) {
-  sheetEngineVersionEl.textContent = `engine v${data.engine_version}`;
+function renderSpecial(data) {
+  const isV2 = data.engine_version === 2;
+  const order = isV2 ? STAT_ORDER_V2 : STAT_ORDER_V1;
 
-  statsGridEl.innerHTML = "";
-  for (const name of STAT_ORDER_V1) {
-    const stat = data.stats[name];
+  statListEl.innerHTML = "";
+  for (const key of order) {
+    const stat = data.stats[key];
     if (!stat) continue;
-    const card = document.createElement("div");
-    card.className = "stat";
-    card.innerHTML = `
-      <div class="stat-name">${name}</div>
-      <div class="stat-value">${stat.value}</div>
-      <div class="stat-raw">raw ${stat.raw_score.toFixed(1)}</div>
-      <div class="stat-bar"><div class="stat-bar-fill" style="width: ${
-        (stat.value / 20) * 100
-      }%"></div></div>
+    const li = document.createElement("li");
+    li.dataset.stat = key;
+    const value = isV2 ? stat.level : stat.value;
+    const displayName = (isV2 ? STAT_DISPLAY_NAMES_V2 : STAT_DISPLAY_NAMES_V1)[key] || key;
+    li.innerHTML = `
+      <span class="label">${displayName}</span>
+      <span class="level">${value}</span>
     `;
-    statsGridEl.appendChild(card);
+    li.addEventListener("click", () => selectStat(key, data));
+    statListEl.appendChild(li);
   }
 
-  flavorBodyEl.innerHTML = "";
-  const dl = document.createElement("dl");
-  const rows = [
-    ["account age", `${data.flavor.account_age_days ?? 0} days`],
-    ["activity span", `${data.flavor.activity_span_days ?? 0} days`],
-    ["current streak", `${data.flavor.current_streak_days ?? 0} days`],
-    ["longest streak", `${data.flavor.longest_streak_days ?? 0} days`],
-    [
-      "restricted contributions",
-      data.flavor.restricted_contribution_count ?? 0,
-    ],
-  ];
-  for (const [key, value] of rows) {
-    const dt = document.createElement("dt");
-    dt.textContent = key;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    dl.appendChild(dt);
-    dl.appendChild(dd);
+  if (order.length > 0) {
+    selectStat(order[0], data);
   }
-  const wrapper = document.createElement("div");
-  wrapper.className = "flavor-body";
-  wrapper.appendChild(dl);
-  flavorBodyEl.appendChild(wrapper);
-
-  rawBodyEl.textContent = JSON.stringify(data.signals, null, 2);
 }
 
-function renderSheetV2(data) {
-  const klass = data.class_name || "Engineer";
-  sheetEngineVersionEl.textContent = `LVL ${data.character_level} · ${klass}`;
+function selectStat(key, data) {
+  statListEl.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("selected", li.dataset.stat === key);
+  });
 
-  statsGridEl.innerHTML = "";
-  for (const name of STAT_ORDER_V2) {
-    const stat = data.stats[name];
-    if (!stat) continue;
-    const card = document.createElement("div");
-    card.className = "stat stat-v2";
-    const subStatRows = (stat.sub_stats || [])
-      .map(
-        (s) =>
-          `<li><span class="sub-name">${s.name}</span><span class="sub-level">${s.level}</span></li>`
-      )
-      .join("");
-    card.innerHTML = `
-      <div class="stat-name">${name}</div>
-      <div class="stat-display">${stat.display}</div>
-      <div class="stat-value">${stat.level}</div>
-      <ul class="sub-stats">${subStatRows}</ul>
+  const stat = data.stats[key];
+  if (!stat) return;
+  const isV2 = data.engine_version === 2;
+  const displayNames = isV2 ? STAT_DISPLAY_NAMES_V2 : STAT_DISPLAY_NAMES_V1;
+  const descriptions = isV2 ? STAT_DESCRIPTIONS_V2 : STAT_DESCRIPTIONS_V1;
+
+  const flavor = stat.display ? ` — ${stat.display}` : "";
+  statDetailNameEl.textContent = `${displayNames[key] || key}${flavor}`;
+  statDetailDescEl.textContent = descriptions[key] || "—";
+
+  // Sub-breakdown
+  statDetailSubsEl.innerHTML = "";
+  if (isV2 && Array.isArray(stat.sub_stats)) {
+    for (const sub of stat.sub_stats) {
+      const dt = document.createElement("dt");
+      dt.textContent = sub.name;
+      const dd = document.createElement("dd");
+      dd.textContent = sub.level;
+      statDetailSubsEl.appendChild(dt);
+      statDetailSubsEl.appendChild(dd);
+    }
+  } else if (!isV2 && stat.inputs && typeof stat.inputs === "object") {
+    for (const [k, v] of Object.entries(stat.inputs)) {
+      const dt = document.createElement("dt");
+      dt.textContent = k;
+      const dd = document.createElement("dd");
+      dd.textContent = typeof v === "number" ? v.toFixed(1) : String(v);
+      statDetailSubsEl.appendChild(dt);
+      statDetailSubsEl.appendChild(dd);
+    }
+  }
+}
+
+function renderSkills(data) {
+  skillListEl.innerHTML = "";
+
+  const flattened = [];
+  for (const parentKey of STAT_ORDER_V2) {
+    const stat = data.stats[parentKey];
+    if (!stat || !Array.isArray(stat.sub_stats)) continue;
+    for (const sub of stat.sub_stats) {
+      flattened.push({ parent: parentKey, name: sub.name, level: sub.level });
+    }
+  }
+
+  for (const sub of flattened) {
+    const li = document.createElement("li");
+    li.dataset.skill = sub.name;
+    li.innerHTML = `
+      <span class="label">${sub.name}</span>
+      <span class="level">${sub.level}<span class="parent-stat"> ${sub.parent}</span></span>
     `;
-    statsGridEl.appendChild(card);
+    li.addEventListener("click", () => selectSkill(sub));
+    skillListEl.appendChild(li);
   }
 
-  flavorBodyEl.innerHTML = "";
-  const dl = document.createElement("dl");
-  const rows = [
-    ["account age", `${data.flavor.account_age_days ?? 0} days`],
-    ["activity span", `${data.flavor.activity_span_days ?? 0} days`],
-    ["current streak", `${data.flavor.current_streak_days ?? 0} days`],
-    ["longest streak", `${data.flavor.longest_streak_days ?? 0} days`],
-    ["active weeks", `${data.flavor.weekly_active_weeks ?? 0} / 52`],
-  ];
-  for (const [key, value] of rows) {
-    const dt = document.createElement("dt");
-    dt.textContent = key;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    dl.appendChild(dt);
-    dl.appendChild(dd);
+  if (flattened.length > 0) {
+    selectSkill(flattened[0]);
   }
-  const wrapper = document.createElement("div");
-  wrapper.className = "flavor-body";
-  wrapper.appendChild(dl);
-  flavorBodyEl.appendChild(wrapper);
+}
 
-  rawBodyEl.textContent = JSON.stringify(data.signals, null, 2);
+function selectSkill(sub) {
+  skillListEl.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("selected", li.dataset.skill === sub.name);
+  });
+
+  const meta = SUB_STAT_DESCRIPTIONS[sub.name] || {};
+  skillDetailNameEl.textContent = sub.name;
+  skillDetailDescEl.textContent = meta.text || "—";
+
+  const parentDisplay =
+    STAT_DISPLAY_NAMES_V2[sub.parent] || sub.parent;
+  skillDetailParentEl.textContent = `under: ${parentDisplay}`;
+
+  // Star rating (cap at 10 visible stars)
+  const maxStars = 10;
+  const filled = Math.min(maxStars, Math.max(0, sub.level));
+  const stars = [];
+  for (let i = 0; i < maxStars; i++) {
+    stars.push(
+      `<span class="star ${i < filled ? "filled" : ""}">${
+        i < filled ? "★" : "☆"
+      }</span>`
+    );
+  }
+  const overflow = sub.level > maxStars ? `+${sub.level - maxStars}` : "";
+  skillDetailRatingEl.innerHTML = `${stars.join("")} <span class="level-num">${sub.level}${
+    overflow ? " " + overflow : ""
+  }</span>`;
 }

@@ -6,81 +6,114 @@
     <title>lethargy.io — dev character sheet</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
-  <body>
-    <header>
-      <h1>lethargy.io</h1>
-      <p class="tagline">
-        GitHub public activity &rarr; character sheet. API-first engineering instrument.
-      </p>
-    </header>
+  <body class="pipboy-body">
+    <div class="scanlines" aria-hidden="true"></div>
 
-    <main>
-      <section class="lookup">
+    <main class="pipboy">
+      <header class="pipboy-bar">
+        <div class="pipboy-title">lethargy.io</div>
+        <div class="pipboy-subtitle">developer character engine · v0</div>
+      </header>
+
+      <section class="lookup" id="lookup-section">
         <form id="lookup-form">
+          <label for="username-input">GITHUB HANDLE</label>
           <input
             id="username-input"
             type="text"
-            placeholder="GitHub username"
+            placeholder="octocat"
             autocomplete="off"
             spellcheck="false"
             required
           />
-          <button type="submit">Roll character</button>
+          <button type="submit">ROLL</button>
         </form>
         <p id="status" class="status"></p>
       </section>
 
       <section id="sheet" class="sheet hidden">
-        <header class="sheet-header">
-          <h2 id="sheet-username"></h2>
-          <div class="sheet-meta">
-            <span id="sheet-engine-version"></span>
-            <span id="sheet-cache-status"></span>
-            <button id="share-button" type="button">Share link</button>
+        <header class="character-bar">
+          <div class="character-name">
+            <span id="character-username"></span>
+            <span class="character-sep">·</span>
+            <span id="character-class" class="character-class"></span>
           </div>
+          <nav class="pipboy-tabs" role="tablist">
+            <button class="tab active" data-tab="special" type="button">SPECIAL</button>
+            <button class="tab" data-tab="skills" type="button">SKILLS</button>
+          </nav>
         </header>
-        <div id="stats-grid" class="stats-grid"></div>
 
-        <details class="flavor">
-          <summary>Flavor &amp; streaks</summary>
-          <div id="flavor-body"></div>
-        </details>
+        <div class="tab-content" id="tab-special">
+          <ul class="pip-list" id="stat-list"></ul>
+          <aside class="pip-detail">
+            <div class="detail-avatar">
+              <img id="avatar" alt="" />
+            </div>
+            <div class="detail-body">
+              <h3 id="stat-detail-name"></h3>
+              <p id="stat-detail-desc"></p>
+              <dl id="stat-detail-subs"></dl>
+            </div>
+          </aside>
+        </div>
 
-        <details class="raw">
-          <summary>Raw signals (engine input)</summary>
-          <pre id="raw-body"></pre>
-        </details>
+        <div class="tab-content hidden" id="tab-skills">
+          <ul class="pip-list" id="skill-list"></ul>
+          <aside class="pip-detail">
+            <div class="detail-body wide">
+              <h3 id="skill-detail-name"></h3>
+              <div id="skill-detail-rating" class="skill-rating"></div>
+              <p id="skill-detail-desc"></p>
+              <p id="skill-detail-parent" class="skill-parent"></p>
+            </div>
+          </aside>
+        </div>
+
+        <footer class="character-footer">
+          <span id="character-level" class="character-level"></span>
+          <span class="footer-sep"></span>
+          <span id="cache-status" class="cache-status"></span>
+          <button id="share-button" type="button">SHARE</button>
+        </footer>
       </section>
 
       <section class="portfolio">
-        <h2>Other projects</h2>
-        <!-- Edit this list: fill in your own portfolio links -->
+        <h2>OTHER TRANSMISSIONS</h2>
         <ul>
-          <li><a href="/docs">OpenAPI docs (FastAPI)</a> &mdash; live API surface for this site</li>
-          <li><a href="https://github.com/" rel="noopener">GitHub profile</a> &mdash; other repos</li>
-          <li>Placeholder &mdash; more projects go here</li>
+          <li><a href="/docs">OpenAPI docs</a> — the full API surface</li>
+          <li><a href="/privacy">privacy &amp; data removal</a></li>
+          <li><a href="/v1/engine/versions">engine versions</a></li>
+          <li>
+            <a href="https://github.com/gortcodes/git-boy-3000" rel="noopener"
+              >source on github</a
+            >
+          </li>
         </ul>
       </section>
 
       <section class="about">
-        <h2>How it works</h2>
+        <h2>HOW IT WORKS</h2>
         <p>
-          The service pulls three public GitHub sources (profile, public events, GraphQL
-          contribution calendar) through an ETag-aware collector, extracts signals with a
-          pure versioned engine, and scores six stats. A Redis-backed cache serves repeat
-          lookups with stale-while-revalidate; owner snapshots persist to Postgres for
-          history and replay. Everything is traced with OpenTelemetry and observed through
-          Prometheus metrics and a Grafana dashboard.
+          Public GitHub profile, public events (last 30), GraphQL contribution calendar
+          (1 year), and &mdash; for the configured owner &mdash; a full walk of non-fork
+          public repos for file-tree probing (terraform, helm, docker, CI/CD configs,
+          observability configs, AI co-author trailers). A pure versioned engine
+          converts those signals into SPECIAL stats and sub-skills. Redis cache with
+          stale-while-revalidate, OpenTelemetry tracing, Prometheus metrics, Loki logs,
+          Grafana dashboard. All runs in docker compose on one machine.
         </p>
       </section>
     </main>
 
-    <footer>
-      <a href="/docs">API docs</a>
+    <footer class="pipboy-footer">
+      <span>lethargy.io</span>
       <span>&middot;</span>
-      <a href="/privacy">Privacy &amp; data removal</a>
+      <a href="/docs">API</a>
       <span>&middot;</span>
-      <a href="/v1/engine/versions">Engine versions</a>
+      <a href="/privacy">PRIVACY</a>
+      <span>&middot;</span>
+      <a href="/v1/engine/versions">ENGINES</a>
     </footer>
 
     <script src="/static/app.js"></script>
