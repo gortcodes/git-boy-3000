@@ -17,6 +17,9 @@ from lethargy.obs.names import (
     SPAN_COLLECTOR_GITHUB_CONTRIBUTIONS,
     SPAN_COLLECTOR_GITHUB_EVENTS,
     SPAN_COLLECTOR_GITHUB_PROFILE,
+    SPAN_COLLECTOR_GITHUB_REPOS_LANGUAGES,
+    SPAN_COLLECTOR_GITHUB_REPOS_LIST,
+    SPAN_COLLECTOR_GITHUB_REPOS_TREE,
 )
 
 GITHUB_API = "https://api.github.com"
@@ -89,6 +92,65 @@ class GitHubClient:
                 raise GitHubUnavailable(f"graphql errors: {body['errors']}")
             raise UserNotFound(username)
         return user.get("contributionsCollection") or {}
+
+    async def list_user_repos(
+        self, username: str, *, max_repos: int = 30
+    ) -> list[dict[str, Any]]:
+        with tracer.start_as_current_span(SPAN_COLLECTOR_GITHUB_REPOS_LIST):
+            result = await self._conditional_get(
+                url=(
+                    f"{GITHUB_API}/users/{username}/repos"
+                    f"?per_page=100&type=owner&sort=pushed"
+                ),
+                endpoint_label="users.repos",
+                not_found_exc=UserNotFound,
+            )
+        if not isinstance(result, list):
+            return []
+        filtered = [
+            repo
+            for repo in result
+            if isinstance(repo, dict) and not repo.get("fork", False)
+        ]
+        return filtered[:max_repos]
+
+    async def get_repo_tree(
+        self, owner: str, name: str, branch: str
+    ) -> list[str]:
+        with tracer.start_as_current_span(SPAN_COLLECTOR_GITHUB_REPOS_TREE):
+            result = await self._conditional_get(
+                url=(
+                    f"{GITHUB_API}/repos/{owner}/{name}/git/trees/{branch}"
+                    f"?recursive=1"
+                ),
+                endpoint_label="repos.tree",
+            )
+        if not isinstance(result, dict):
+            return []
+        tree = result.get("tree") or []
+        return [
+            entry["path"]
+            for entry in tree
+            if isinstance(entry, dict)
+            and entry.get("type") == "blob"
+            and isinstance(entry.get("path"), str)
+        ]
+
+    async def get_repo_languages(
+        self, owner: str, name: str
+    ) -> dict[str, int]:
+        with tracer.start_as_current_span(SPAN_COLLECTOR_GITHUB_REPOS_LANGUAGES):
+            result = await self._conditional_get(
+                url=f"{GITHUB_API}/repos/{owner}/{name}/languages",
+                endpoint_label="repos.languages",
+            )
+        if not isinstance(result, dict):
+            return {}
+        return {
+            key: int(value)
+            for key, value in result.items()
+            if isinstance(value, int | float)
+        }
 
     async def _conditional_get(
         self,
