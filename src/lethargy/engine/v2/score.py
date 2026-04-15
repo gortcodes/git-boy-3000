@@ -54,8 +54,9 @@ def _log2_level(raw: int, weight: float) -> int:
 
 def _make_stat(name: str, display: str, sub_stats: list[tuple[str, int]]) -> StatV2:
     sub_list = [SubStatV2(name=n, level=lvl) for n, lvl in sub_stats]
-    # Floor parent stat level at 1; sub-stats can still be 0.
-    level = max(1, sum(s.level for s in sub_list))
+    # Every parent stat starts at a base of 1; sub-stats add on top.
+    # An empty stat reads as 1. A stat with one 1-point sub-stat reads as 2.
+    level = 1 + sum(s.level for s in sub_list)
     return StatV2(name=name, display=display, level=level, sub_stats=sub_list)
 
 

@@ -41,19 +41,20 @@ def test_score_v2_stat_keys_match_spec():
     assert set(sheet.stats.keys()) == EXPECTED_STATS
 
 
-def test_score_v2_stat_levels_are_sums_of_sub_stats_with_floor_of_one():
+def test_score_v2_stat_levels_are_base_plus_sub_stats():
     sheet = _run("raw_owner_v2.json")
     for name, stat in sheet.stats.items():
         sub_sum = sum(sub.level for sub in stat.sub_stats)
-        expected = max(1, sub_sum)
-        assert stat.level == expected, f"{name}: {stat.level} != max(1, {sub_sum})"
+        expected = 1 + sub_sum
+        assert stat.level == expected, f"{name}: {stat.level} != 1 + {sub_sum}"
 
 
 def test_score_v2_str_sub_stats():
     sheet = _run("raw_owner_v2.json")
     sub = {s.name: s.level for s in sheet.stats["STR"].sub_stats}
     assert sub == {"helm": 1, "terraform": 1, "docker": 2}
-    assert sheet.stats["STR"].level == 4
+    # 1 base + (1 + 1 + 2) sub-stats
+    assert sheet.stats["STR"].level == 5
 
 
 def test_score_v2_end_uses_log2_with_weights():
@@ -79,7 +80,8 @@ def test_score_v2_luck_counts_raw():
     sheet = _run("raw_owner_v2.json")
     sub = {s.name: s.level for s in sheet.stats["LUCK"].sub_stats}
     assert sub == {"ai_trailers": 1, "ai_configs": 1}
-    assert sheet.stats["LUCK"].level == 2
+    # 1 base + (1 + 1) sub-stats
+    assert sheet.stats["LUCK"].level == 3
 
 
 def test_score_v2_character_level_is_sum_of_stat_levels():
@@ -94,7 +96,7 @@ def test_score_v2_is_deterministic():
     assert _run("raw_owner_v2.json") == _run("raw_owner_v2.json")
 
 
-def test_score_v2_empty_signals_floor_every_stat_at_one():
+def test_score_v2_empty_signals_give_every_stat_the_base_of_one():
     from lethargy.engine.domain import SignalsV2
 
     empty = SignalsV2(
