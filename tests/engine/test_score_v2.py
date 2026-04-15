@@ -41,11 +41,12 @@ def test_score_v2_stat_keys_match_spec():
     assert set(sheet.stats.keys()) == EXPECTED_STATS
 
 
-def test_score_v2_stat_levels_are_sums_of_sub_stats():
+def test_score_v2_stat_levels_are_sums_of_sub_stats_with_floor_of_one():
     sheet = _run("raw_owner_v2.json")
     for name, stat in sheet.stats.items():
-        expected = sum(sub.level for sub in stat.sub_stats)
-        assert stat.level == expected, f"{name}: {stat.level} != sum of sub-stats {expected}"
+        sub_sum = sum(sub.level for sub in stat.sub_stats)
+        expected = max(1, sub_sum)
+        assert stat.level == expected, f"{name}: {stat.level} != max(1, {sub_sum})"
 
 
 def test_score_v2_str_sub_stats():
@@ -91,6 +92,51 @@ def test_score_v2_character_level_is_sum_of_stat_levels():
 
 def test_score_v2_is_deterministic():
     assert _run("raw_owner_v2.json") == _run("raw_owner_v2.json")
+
+
+def test_score_v2_empty_signals_floor_every_stat_at_one():
+    from lethargy.engine.domain import SignalsV2
+
+    empty = SignalsV2(
+        engine_version=2,
+        helm_count=0,
+        terraform_count=0,
+        docker_count=0,
+        github_actions_count=0,
+        gitlab_ci_count=0,
+        jenkins_count=0,
+        longest_streak_days=0,
+        total_commit_contributions=0,
+        total_pr_contributions=0,
+        python_primary_count=0,
+        javascript_primary_count=0,
+        typescript_primary_count=0,
+        prometheus_count=0,
+        grafana_count=0,
+        otel_count=0,
+        total_pr_review_contributions=0,
+        issue_comment_event_count=0,
+        distinct_external_repos_touched=0,
+        ai_trailers_count=0,
+        ai_configs_count=0,
+        account_age_days=0,
+        activity_span_days=0,
+        current_streak_days=0,
+        weekly_active_weeks=0,
+        hour_histogram=[0] * 24,
+    )
+    sheet = score.score(
+        empty,
+        username="empty",
+        class_name="Engineer",
+        fetched_at=datetime(2026, 4, 15, tzinfo=UTC),
+        computed_at=datetime(2026, 4, 15, tzinfo=UTC),
+        raw_schema_version=2,
+    )
+    for name, stat in sheet.stats.items():
+        assert stat.level >= 1, f"{name}: level {stat.level} below floor"
+    # Seven parent stats, each floored at 1
+    assert sheet.character_level == 7
 
 
 def test_score_v2_class_name_is_passed_through():
