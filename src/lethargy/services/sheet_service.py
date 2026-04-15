@@ -10,21 +10,20 @@ from lethargy.cache.sheet import SheetCache
 from lethargy.cache.throttle import Throttle
 from lethargy.collector.errors import GitHubUnavailable
 from lethargy.collector.fetch import SnapshotBuilder
-from lethargy.engine.domain import CharacterSheet, RawSnapshot, SheetBundle, Signals
-from lethargy.engine.registry import ENGINES, LATEST
+from lethargy.engine.domain import SheetBundle, SheetBundleV2
+from lethargy.engine.registry import ENGINES
 from lethargy.obs import metrics as obs_metrics
 from lethargy.obs.names import SPAN_SERVICE_SHEET_GET_OR_REFRESH
-from lethargy.persistence.db import Database
-from lethargy.persistence.sheets import insert_sheet
-from lethargy.persistence.snapshots import insert_snapshot
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
+AnyBundle = SheetBundle | SheetBundleV2
+
 
 @dataclass(frozen=True)
 class SheetEnvelope:
-    bundle: SheetBundle
+    bundle: AnyBundle
     cache_status: str  # hit | stale | miss | throttled | forced
 
 
@@ -32,38 +31,44 @@ class SheetService:
     def __init__(
         self,
         snapshot_builder: SnapshotBuilder,
-        database: Database | None,
         sheet_cache: SheetCache,
         lock: Lock,
         throttle: Throttle,
         owner_usernames: frozenset[str],
         fresh_ttl_seconds: int,
         stale_ttl_seconds: int,
+        owner_class: str,
     ) -> None:
         self._snapshot_builder = snapshot_builder
-        self._database = database
         self._sheet_cache = sheet_cache
         self._lock = lock
         self._throttle = throttle
         self._owner_usernames = owner_usernames
         self._fresh_ttl = fresh_ttl_seconds
         self._stale_ttl = stale_ttl_seconds
+        self._owner_class = owner_class
         self._background_tasks: set[asyncio.Task] = set()
+
+    def _engine_version_for(self, key: str) -> int:
+        return 2 if key in self._owner_usernames else 1
 
     async def get_or_refresh(
         self, username: str, *, force: bool = False
     ) -> SheetEnvelope:
         key = username.lower()
+        is_owner = key in self._owner_usernames
+        engine_version = self._engine_version_for(key)
 
         # v0 force gate: only owners may bypass the cache. See memory
         # "multi-user future" for the long-term replacement.
-        if force and key not in self._owner_usernames:
+        if force and not is_owner:
             force = False
 
         with tracer.start_as_current_span(SPAN_SERVICE_SHEET_GET_OR_REFRESH) as span:
             span.set_attribute("force", force)
+            span.set_attribute("engine.version", engine_version)
 
-            cached = await self._sheet_cache.get(key, LATEST)
+            cached = await self._sheet_cache.get(key, engine_version)
 
             if cached is not None and not force:
                 if cached.age_seconds < self._fresh_ttl:
@@ -71,7 +76,9 @@ class SheetService:
                     return SheetEnvelope(bundle=cached.bundle, cache_status="hit")
                 if cached.age_seconds < self._fresh_ttl + self._stale_ttl:
                     _record_cache("stale")
-                    task = asyncio.create_task(self._refresh_background(username))
+                    task = asyncio.create_task(
+                        self._refresh_background(username, engine_version=engine_version)
+                    )
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
                     return SheetEnvelope(bundle=cached.bundle, cache_status="stale")
@@ -89,7 +96,7 @@ class SheetService:
                 raise GitHubUnavailable("refresh in progress; try again")
 
             try:
-                bundle = await self._compute_and_persist(username)
+                bundle = await self._compute(username, engine_version=engine_version)
                 await self._sheet_cache.put(
                     key, bundle, ttl=self._fresh_ttl + self._stale_ttl
                 )
@@ -100,14 +107,16 @@ class SheetService:
             finally:
                 await self._lock.release(key, outcome.token)
 
-    async def _refresh_background(self, username: str) -> None:
+    async def _refresh_background(
+        self, username: str, *, engine_version: int
+    ) -> None:
         key = username.lower()
         try:
             outcome = await self._lock.acquire(key)
             if isinstance(outcome, LockContended):
                 return
             try:
-                bundle = await self._compute_and_persist(username)
+                bundle = await self._compute(username, engine_version=engine_version)
                 await self._sheet_cache.put(
                     key, bundle, ttl=self._fresh_ttl + self._stale_ttl
                 )
@@ -117,38 +126,36 @@ class SheetService:
         except Exception:
             log.exception("background refresh failed for %s", username)
 
-    async def _compute_and_persist(self, username: str) -> SheetBundle:
-        snapshot = await self._snapshot_builder.build(username)
-        engine = ENGINES[LATEST]
+    async def _compute(
+        self, username: str, *, engine_version: int
+    ) -> AnyBundle:
+        is_owner = username.lower() in self._owner_usernames
+        snapshot = await self._snapshot_builder.build(
+            username, include_repo_content=is_owner
+        )
+        engine = ENGINES[engine_version]
         signals = engine.extract(snapshot)
+        now = datetime.now(UTC)
+
+        if engine_version == 2:
+            sheet = engine.score(
+                signals,
+                username=snapshot.username,
+                class_name=self._owner_class,
+                fetched_at=snapshot.fetched_at,
+                computed_at=now,
+                raw_schema_version=snapshot.raw_schema_version,
+            )
+            return SheetBundleV2(sheet=sheet, signals=signals)
+
         sheet = engine.score(
             signals,
             username=snapshot.username,
             fetched_at=snapshot.fetched_at,
-            computed_at=datetime.now(UTC),
+            computed_at=now,
             raw_schema_version=snapshot.raw_schema_version,
         )
-        if username.lower() in self._owner_usernames:
-            await self._persist_owner(snapshot, sheet, signals)
         return SheetBundle(sheet=sheet, signals=signals)
-
-    async def _persist_owner(
-        self,
-        snapshot: RawSnapshot,
-        sheet: CharacterSheet,
-        signals: Signals,
-    ) -> None:
-        if self._database is None:
-            return
-        async with self._database.session() as session, session.begin():
-            raw_id = await insert_snapshot(session, snapshot)
-            await insert_sheet(
-                session,
-                raw_snapshot_id=raw_id,
-                sheet=sheet,
-                signals=signals,
-            )
-        obs_metrics.owner_snapshots_total.labels(username=sheet.username).inc()
 
 
 def _record_cache(result: str) -> None:

@@ -21,9 +21,8 @@ ENGINES: dict[int, Engine] = {
     2: Engine(version=2, extract=_v2_extract.extract, score=_v2_score.score),
 }
 
-# v2 is registered but not wired into the service layer yet. The service
-# hard-codes ENGINES[LATEST] and v2.score requires additional kwargs
-# (class_name) that only the owner path will provide. Until burst 3
-# implements the owner-vs-guest routing, LATEST stays at 1 so guests
-# continue getting the v1 pipeline unchanged.
-LATEST = 1
+# LATEST is the newest registered engine. The service layer picks v1 or v2
+# explicitly per request based on whether the username is in the owner set,
+# so LATEST is only reported via /v1/engine/versions and not used as a
+# runtime dispatch key.
+LATEST = max(ENGINES)

@@ -6,6 +6,7 @@ from lethargy.engine.domain import (
     CharacterSheet,
     RawSnapshot,
     SheetBundle,
+    SheetBundleV2,
     Signals,
     Stat,
 )
@@ -99,13 +100,15 @@ class _Throttle:
 class _Builder:
     def __init__(self):
         self.calls = 0
+        self.last_include_repo_content = False
 
-    async def build(self, username):
+    async def build(self, username, *, include_repo_content: bool = False):
         self.calls += 1
+        self.last_include_repo_content = include_repo_content
         return RawSnapshot(
             username=username,
-            fetched_at=datetime(2026, 4, 14, tzinfo=UTC),
-            raw_schema_version=1,
+            fetched_at=datetime(2026, 4, 15, tzinfo=UTC),
+            raw_schema_version=2 if include_repo_content else 1,
             profile={"login": username, "created_at": "2020-01-01T00:00:00Z"},
             events=[],
             contributions={},
@@ -122,16 +125,17 @@ def _service(
     owners=frozenset(),
     fresh=600,
     stale=3000,
+    owner_class="TestClass",
 ) -> SheetService:
     return SheetService(
         snapshot_builder=builder or _Builder(),
-        database=None,
         sheet_cache=cache or _Cache(),
         lock=lock or _Lock(),
         throttle=throttle or _Throttle(),
         owner_usernames=owners,
         fresh_ttl_seconds=fresh,
         stale_ttl_seconds=stale,
+        owner_class=owner_class,
     )
 
 
@@ -159,9 +163,6 @@ async def test_miss_triggers_fetch_and_populates_cache():
 
 
 async def test_throttled_serves_old_cache_without_fetching():
-    # Cache is past the fresh+stale window (600+3000=3600), so we'd normally
-    # do a synchronous refresh — but the throttle blocks that and we serve
-    # the stale entry anyway.
     cache = _Cache(entry=CachedBundle(bundle=_bundle(), age_seconds=4000))
     builder = _Builder()
     throttle = _Throttle(armed=True)
@@ -186,7 +187,7 @@ async def test_force_is_silently_ignored_for_non_owner():
     assert builder.calls == 0
 
 
-async def test_force_for_owner_bypasses_fresh_cache():
+async def test_owner_routes_to_engine_v2_and_force_bypasses_cache():
     cache = _Cache(entry=CachedBundle(bundle=_bundle(), age_seconds=60))
     builder = _Builder()
     service = _service(
@@ -197,3 +198,36 @@ async def test_force_for_owner_bypasses_fresh_cache():
 
     assert envelope.cache_status == "forced"
     assert builder.calls == 1
+    assert builder.last_include_repo_content is True
+    assert isinstance(envelope.bundle, SheetBundleV2)
+    assert envelope.bundle.sheet.engine_version == 2
+    assert envelope.bundle.sheet.class_name == "TestClass"
+
+
+async def test_owner_miss_without_force_also_routes_to_v2():
+    cache = _Cache()  # no cache entry
+    builder = _Builder()
+    service = _service(
+        cache=cache, builder=builder, owners=frozenset({"owneruser"})
+    )
+
+    envelope = await service.get_or_refresh("owneruser")
+
+    assert envelope.cache_status == "miss"
+    assert isinstance(envelope.bundle, SheetBundleV2)
+    assert builder.last_include_repo_content is True
+
+
+async def test_non_owner_miss_routes_to_v1():
+    cache = _Cache()
+    builder = _Builder()
+    service = _service(
+        cache=cache, builder=builder, owners=frozenset({"owneruser"})
+    )
+
+    envelope = await service.get_or_refresh("stranger")
+
+    assert envelope.cache_status == "miss"
+    assert isinstance(envelope.bundle, SheetBundle)
+    assert envelope.bundle.sheet.engine_version == 1
+    assert builder.last_include_repo_content is False

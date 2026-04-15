@@ -326,6 +326,48 @@ footer a:hover {
   text-decoration: underline;
 }
 
+/* Engine v2: nested sub-stat cards */
+
+.stat.stat-v2 .stat-display {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.125rem;
+}
+
+.stat.stat-v2 .stat-value {
+  font-size: 2.75rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.sub-stats {
+  list-style: none;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.sub-stats li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.125rem 0;
+  color: var(--text-muted);
+}
+
+.sub-stats .sub-name {
+  font-weight: 500;
+}
+
+.sub-stats .sub-level {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 @media (max-width: 600px) {
   .lookup form {
     flex-direction: column;

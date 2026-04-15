@@ -16,7 +16,7 @@ from lethargy.collector.errors import (
     UserNotFound,
 )
 from lethargy.config import Settings
-from lethargy.engine.domain import CharacterSheet
+from lethargy.engine.domain import CharacterSheet, CharacterSheetV2
 from lethargy.persistence.db import Database
 from lethargy.persistence.sheets import list_sheets_for_user
 from lethargy.services.errors import NoHistoryAvailable, UnknownEngineVersion
@@ -67,7 +67,7 @@ async def get_sheet(
         raise _translate_collector_errors(exc) from None
 
     _set_sheet_headers(response, envelope)
-    return _to_response(envelope.bundle.sheet)
+    return _serialize_sheet(envelope.bundle.sheet)
 
 
 @router.get("/{username}/raw")
@@ -83,7 +83,7 @@ async def get_sheet_raw(
         raise _translate_collector_errors(exc) from None
 
     _set_sheet_headers(response, envelope)
-    body = _to_response(envelope.bundle.sheet)
+    body = _serialize_sheet(envelope.bundle.sheet)
     body["signals"] = asdict(envelope.bundle.signals)
     return body
 
@@ -105,7 +105,7 @@ async def recompute_sheet(
     response.headers["X-Engine-Version"] = str(sheet.engine_version)
     response.headers["X-Raw-Schema-Version"] = str(sheet.raw_schema_version)
     response.headers["X-Fetched-At"] = sheet.fetched_at.isoformat()
-    return _to_response(sheet)
+    return _serialize_sheet(sheet)
 
 
 @router.get("/{username}/history")
@@ -133,7 +133,13 @@ async def get_sheet_history(
     return {"username": username, "history": history}
 
 
-def _to_response(sheet: CharacterSheet) -> dict:
+def _serialize_sheet(sheet: CharacterSheet | CharacterSheetV2) -> dict:
+    if isinstance(sheet, CharacterSheetV2):
+        return _to_response_v2(sheet)
+    return _to_response_v1(sheet)
+
+
+def _to_response_v1(sheet: CharacterSheet) -> dict:
     return {
         "username": sheet.username,
         "engine_version": sheet.engine_version,
@@ -146,6 +152,30 @@ def _to_response(sheet: CharacterSheet) -> dict:
                 "value": stat.value,
                 "raw_score": stat.raw_score,
                 "inputs": stat.contributing_signals,
+            }
+            for name, stat in sheet.stats.items()
+        },
+        "flavor": sheet.flavor,
+    }
+
+
+def _to_response_v2(sheet: CharacterSheetV2) -> dict:
+    return {
+        "username": sheet.username,
+        "engine_version": sheet.engine_version,
+        "raw_schema_version": sheet.raw_schema_version,
+        "fetched_at": sheet.fetched_at.isoformat(),
+        "computed_at": sheet.computed_at.isoformat(),
+        "class_name": sheet.class_name,
+        "character_level": sheet.character_level,
+        "stats": {
+            name: {
+                "name": stat.name,
+                "display": stat.display,
+                "level": stat.level,
+                "sub_stats": [
+                    {"name": s.name, "level": s.level} for s in stat.sub_stats
+                ],
             }
             for name, stat in sheet.stats.items()
         },

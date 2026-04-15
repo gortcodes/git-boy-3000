@@ -45,17 +45,18 @@ async def lifespan(app: FastAPI):
     throttle = Throttle(redis_client, ttl_seconds=settings.refresh_throttle_seconds)
     sheet_service = SheetService(
         snapshot_builder=snapshot_builder,
-        database=database,
         sheet_cache=sheet_cache,
         lock=lock,
         throttle=throttle,
         owner_usernames=settings.owner_usernames,
         fresh_ttl_seconds=settings.sheet_fresh_ttl_seconds,
         stale_ttl_seconds=settings.sheet_stale_ttl_seconds,
+        owner_class=settings.owner_class,
     )
     replay_service = ReplayService(
         database=database,
         owner_usernames=settings.owner_usernames,
+        owner_class=settings.owner_class,
     )
 
     app.state.settings = settings

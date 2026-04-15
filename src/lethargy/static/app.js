@@ -1,6 +1,7 @@
 "use strict";
 
-const STAT_ORDER = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+const STAT_ORDER_V1 = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+const STAT_ORDER_V2 = ["STR", "AGI", "END", "INT", "PER", "CHA", "LUCK"];
 
 const form = document.getElementById("lookup-form");
 const usernameInput = document.getElementById("username-input");
@@ -74,11 +75,20 @@ function setStatus(text, isError = false) {
 function renderSheet(data, headers) {
   sheetEl.classList.remove("hidden");
   sheetUsernameEl.textContent = data.username;
-  sheetEngineVersionEl.textContent = `engine v${data.engine_version}`;
   sheetCacheStatusEl.textContent = `cache: ${headers.get("x-cache-status") || "?"}`;
 
+  if (data.engine_version === 2) {
+    renderSheetV2(data);
+  } else {
+    renderSheetV1(data);
+  }
+}
+
+function renderSheetV1(data) {
+  sheetEngineVersionEl.textContent = `engine v${data.engine_version}`;
+
   statsGridEl.innerHTML = "";
-  for (const name of STAT_ORDER) {
+  for (const name of STAT_ORDER_V1) {
     const stat = data.stats[name];
     if (!stat) continue;
     const card = document.createElement("div");
@@ -105,6 +115,56 @@ function renderSheet(data, headers) {
       "restricted contributions",
       data.flavor.restricted_contribution_count ?? 0,
     ],
+  ];
+  for (const [key, value] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    dl.appendChild(dt);
+    dl.appendChild(dd);
+  }
+  const wrapper = document.createElement("div");
+  wrapper.className = "flavor-body";
+  wrapper.appendChild(dl);
+  flavorBodyEl.appendChild(wrapper);
+
+  rawBodyEl.textContent = JSON.stringify(data.signals, null, 2);
+}
+
+function renderSheetV2(data) {
+  const klass = data.class_name || "Engineer";
+  sheetEngineVersionEl.textContent = `LVL ${data.character_level} · ${klass}`;
+
+  statsGridEl.innerHTML = "";
+  for (const name of STAT_ORDER_V2) {
+    const stat = data.stats[name];
+    if (!stat) continue;
+    const card = document.createElement("div");
+    card.className = "stat stat-v2";
+    const subStatRows = (stat.sub_stats || [])
+      .map(
+        (s) =>
+          `<li><span class="sub-name">${s.name}</span><span class="sub-level">${s.level}</span></li>`
+      )
+      .join("");
+    card.innerHTML = `
+      <div class="stat-name">${name}</div>
+      <div class="stat-display">${stat.display}</div>
+      <div class="stat-value">${stat.level}</div>
+      <ul class="sub-stats">${subStatRows}</ul>
+    `;
+    statsGridEl.appendChild(card);
+  }
+
+  flavorBodyEl.innerHTML = "";
+  const dl = document.createElement("dl");
+  const rows = [
+    ["account age", `${data.flavor.account_age_days ?? 0} days`],
+    ["activity span", `${data.flavor.activity_span_days ?? 0} days`],
+    ["current streak", `${data.flavor.current_streak_days ?? 0} days`],
+    ["longest streak", `${data.flavor.longest_streak_days ?? 0} days`],
+    ["active weeks", `${data.flavor.weekly_active_weeks ?? 0} / 52`],
   ];
   for (const [key, value] of rows) {
     const dt = document.createElement("dt");

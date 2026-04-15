@@ -36,6 +36,7 @@ class Settings:
     log_level: str
     env: str
     privacy_contact: str
+    owner_class: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -53,6 +54,7 @@ class Settings:
             log_level=_env("LETHARGY_LOG_LEVEL", "INFO"),
             env=_env("LETHARGY_ENV", "dev"),
             privacy_contact=_env("LETHARGY_PRIVACY_CONTACT", ""),
+            owner_class=_env("LETHARGY_OWNER_CLASS", "Engineer"),
         )
 
 
