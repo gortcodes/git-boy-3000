@@ -65,8 +65,6 @@ const SUB_STAT_DESCRIPTIONS = {
 };
 
 // === DOM refs ===
-const form = document.getElementById("lookup-form");
-const usernameInput = document.getElementById("username-input");
 const statusEl = document.getElementById("status");
 const sheetEl = document.getElementById("sheet");
 
@@ -74,13 +72,16 @@ const characterUsernameEl = document.getElementById("character-username");
 const shareButton = document.getElementById("share-button");
 
 const topTabButtons = document.querySelectorAll(".top-tab");
-const subTabRow = document.getElementById("sub-tab-row");
-const subTabButtons = document.querySelectorAll(".sub-tab");
+const subTabRowStat = document.getElementById("sub-tab-row-stat");
+const subTabRowData = document.getElementById("sub-tab-row-data");
 
 const tabPlaceholder = document.getElementById("tab-placeholder");
 const tabStatus = document.getElementById("tab-status");
 const tabSpecial = document.getElementById("tab-special");
 const tabSkills = document.getElementById("tab-skills");
+const tabSystem = document.getElementById("tab-system");
+const tabQuests = document.getElementById("tab-quests");
+const tabNotes = document.getElementById("tab-notes");
 
 const statusListEl = document.getElementById("status-list");
 const avatarEl = document.getElementById("avatar");
@@ -99,21 +100,37 @@ const skillDetailDescEl = document.getElementById("skill-detail-desc");
 const skillDetailRatingEl = document.getElementById("skill-detail-rating");
 const skillDetailParentEl = document.getElementById("skill-detail-parent");
 
+const questListEl = document.getElementById("quest-list");
+const questDetailNameEl = document.getElementById("quest-detail-name");
+const questDetailDescEl = document.getElementById("quest-detail-desc");
+const questDetailMetaEl = document.getElementById("quest-detail-meta");
+const questDetailLinkEl = document.getElementById("quest-detail-link");
+
 const hpValueEl = document.getElementById("hp-value");
 const levelValueEl = document.getElementById("level-value");
 const apValueEl = document.getElementById("ap-value");
 
-const ALL_TAB_PANELS = [tabPlaceholder, tabStatus, tabSpecial, tabSkills];
+const ALL_TAB_PANELS = [
+  tabPlaceholder, tabStatus, tabSpecial, tabSkills,
+  tabSystem, tabQuests, tabNotes,
+];
 
 let currentData = null;
+let cachedRepos = null;
+const treeCache = {};
 
-// === Form ===
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const username = usernameInput.value.trim();
-  if (!username) return;
-  loadSheet(username);
-});
+const REWARD_DETECTORS = [
+  { name: "helm", stat: "STR", test: (p) => p === "Chart.yaml" || p.endsWith("/Chart.yaml") || p === "values.yaml" || p.endsWith("/values.yaml") },
+  { name: "terraform", stat: "STR", test: (p) => p.endsWith(".tf") || p.endsWith(".tfvars") },
+  { name: "docker", stat: "STR", test: (p) => p === "Dockerfile" || p.endsWith("/Dockerfile") },
+  { name: "github_actions", stat: "AGI", test: (p) => p.startsWith(".github/workflows/") && (p.endsWith(".yml") || p.endsWith(".yaml")) },
+  { name: "gitlab_ci", stat: "AGI", test: (p) => p === ".gitlab-ci.yml" },
+  { name: "jenkins", stat: "AGI", test: (p) => p === "Jenkinsfile" || p.endsWith("/Jenkinsfile") },
+  { name: "prometheus", stat: "PER", test: (p) => p === "prometheus.yml" || p.endsWith("/prometheus.yml") || p.startsWith("prometheus/") },
+  { name: "grafana", stat: "PER", test: (p) => p.startsWith("grafana/") || p.includes("/grafana/") },
+  { name: "otel", stat: "PER", test: (p) => (p.toLowerCase().includes("otel") || p.toLowerCase().includes("opentelemetry")) && (p.endsWith(".yml") || p.endsWith(".yaml")) },
+  { name: "ai_config", stat: "LUCK", test: (p) => p === "CLAUDE.md" || p === ".cursorrules" || p === ".github/copilot-instructions.md" },
+];
 
 // === Share ===
 shareButton.addEventListener("click", async () => {
@@ -129,42 +146,63 @@ shareButton.addEventListener("click", async () => {
   }
 });
 
-// Auto-load via ?u=
-const params = new URLSearchParams(window.location.search);
-const initialUsername = params.get("u");
-if (initialUsername) {
-  usernameInput.value = initialUsername;
-  loadSheet(initialUsername);
-}
+// === Auto-load owner on page load ===
+(async function boot() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get("u");
+  if (fromUrl) {
+    loadSheet(fromUrl);
+    return;
+  }
+  try {
+    const res = await fetch("/v1/owner");
+    const data = await res.json();
+    if (data.owner) {
+      loadSheet(data.owner);
+    } else {
+      setStatus("no owner configured");
+    }
+  } catch (err) {
+    setStatus(`failed to load owner: ${err.message}`, true);
+  }
+})();
 
 // === Top-level tabs ===
+const SUB_TAB_ROWS = { stat: subTabRowStat, data: subTabRowData };
+const PANEL_MAP = {
+  status: tabStatus, special: tabSpecial, skills: tabSkills,
+  system: tabSystem, quests: tabQuests, notes: tabNotes,
+};
+
 topTabButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     const top = btn.dataset.top;
     topTabButtons.forEach((b) => b.classList.toggle("active", b === btn));
 
-    if (top === "stat") {
-      subTabRow.style.display = "";
-      showSubTab(document.querySelector(".sub-tab.active").dataset.tab);
+    // Hide all sub-tab rows, show the one for this top tab (if any)
+    Object.values(SUB_TAB_ROWS).forEach((r) => r.classList.add("hidden"));
+    const row = SUB_TAB_ROWS[top];
+    if (row) {
+      row.classList.remove("hidden");
+      const activeSub = row.querySelector(".sub-tab.active");
+      showPanel(PANEL_MAP[activeSub?.dataset.sub] || tabPlaceholder);
+      if (top === "data" && activeSub?.dataset.sub === "quests") loadQuests();
     } else {
-      subTabRow.style.display = "none";
       showPanel(tabPlaceholder);
     }
   });
 });
 
-// === Sub-tabs ===
-subTabButtons.forEach((btn) => {
+// === Sub-tabs (both rows share the same handler) ===
+document.querySelectorAll(".sub-tab").forEach((btn) => {
   btn.addEventListener("click", () => {
-    subTabButtons.forEach((b) => b.classList.toggle("active", b === btn));
-    showSubTab(btn.dataset.tab);
+    const row = btn.closest(".sub-tab-row");
+    row.querySelectorAll(".sub-tab").forEach((b) => b.classList.toggle("active", b === btn));
+    const sub = btn.dataset.sub;
+    showPanel(PANEL_MAP[sub] || tabPlaceholder);
+    if (sub === "quests") loadQuests();
   });
 });
-
-function showSubTab(tab) {
-  const map = { status: tabStatus, special: tabSpecial, skills: tabSkills };
-  showPanel(map[tab] || tabStatus);
-}
 
 function showPanel(panel) {
   ALL_TAB_PANELS.forEach((p) => p.classList.toggle("hidden", p !== panel));
@@ -172,7 +210,7 @@ function showPanel(panel) {
 
 // === Loading ===
 async function loadSheet(username) {
-  setStatus(`ROLLING ${username.toUpperCase()}...`);
+  setStatus("");
   sheetEl.classList.add("hidden");
 
   try {
@@ -185,8 +223,7 @@ async function loadSheet(username) {
     const data = await response.json();
     currentData = data;
     renderSheet(data, response.headers);
-    const cacheStatus = response.headers.get("x-cache-status") || "?";
-    setStatus(`engine v${data.engine_version} · ${cacheStatus}`);
+    setStatus("");
   } catch (err) {
     setStatus(`error: ${err.message}`, true);
   }
@@ -206,20 +243,18 @@ function renderSheet(data, headers) {
 
   characterUsernameEl.textContent = data.username;
 
-  // Avatars (STATUS + SPECIAL tabs share the same image)
   avatarEl.src = avatarUrl;
   avatarEl.alt = `${data.username} avatar`;
   specialAvatarEl.src = avatarUrl;
   specialAvatarEl.alt = `${data.username} avatar`;
 
-  // Reset to STAT > STATUS
   topTabButtons.forEach((b) => b.classList.toggle("active", b.dataset.top === "stat"));
-  subTabRow.style.display = "";
-  subTabButtons.forEach((b) => b.classList.toggle("active", b.dataset.tab === "status"));
-  showSubTab("status");
+  Object.values(SUB_TAB_ROWS).forEach((r) => r.classList.add("hidden"));
+  subTabRowStat.classList.remove("hidden");
+  subTabRowStat.querySelectorAll(".sub-tab").forEach((b) => b.classList.toggle("active", b.dataset.sub === "status"));
+  showPanel(tabStatus);
 
-  // SKILLS tab visibility (v2 only)
-  const skillsBtn = document.querySelector('[data-tab="skills"]');
+  const skillsBtn = document.querySelector('[data-sub="skills"]');
   if (skillsBtn) skillsBtn.style.display = isV2 ? "" : "none";
 
   renderStatusTab(data);
@@ -374,9 +409,7 @@ function renderStatusBar(data) {
     const agi = data.stats.AGI?.level || 1;
     const klass = data.class_name || "Engineer";
 
-    // HP = 80 + Endurance × 5 + (Level - 1) × floor(Endurance/2 + 2.5)
     const hp = 80 + end * 5 + (level - 1) * Math.floor(end / 2 + 2.5);
-    // AP = 60 + 10 × Agility
     const ap = 60 + 10 * agi;
 
     hpValueEl.textContent = `${hp}/${hp}`;
@@ -387,4 +420,124 @@ function renderStatusBar(data) {
     levelValueEl.textContent = `v${data.engine_version}`;
     apValueEl.textContent = "--";
   }
+}
+
+// === QUESTS tab (DATA > QUESTS) ===
+async function loadQuests() {
+  if (cachedRepos || !currentData) return;
+  questListEl.innerHTML = "";
+  questDetailNameEl.textContent = "";
+  questDetailDescEl.textContent = "Loading quests...";
+  questDetailMetaEl.innerHTML = "";
+  questDetailLinkEl.innerHTML = "";
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/users/${encodeURIComponent(currentData.username)}/repos?per_page=100&type=owner&sort=pushed`
+    );
+    if (!res.ok) throw new Error(`GitHub ${res.status}`);
+    const repos = await res.json();
+    cachedRepos = repos.filter((r) => !r.fork);
+    renderQuests(cachedRepos);
+  } catch (err) {
+    questDetailDescEl.textContent = `Failed to load: ${err.message}`;
+  }
+}
+
+function renderQuests(repos) {
+  questListEl.innerHTML = "";
+  for (const repo of repos) {
+    const li = document.createElement("li");
+    li.dataset.repo = repo.full_name;
+    li.innerHTML = `<span class="label">${repo.name}</span><span class="level">${repo.language || "—"}</span>`;
+    li.addEventListener("click", () => selectQuest(repo));
+    questListEl.appendChild(li);
+  }
+  if (repos.length > 0) selectQuest(repos[0]);
+  else {
+    questDetailNameEl.textContent = "";
+    questDetailDescEl.textContent = "// NO QUESTS FOUND //";
+  }
+}
+
+function selectQuest(repo) {
+  questListEl.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("selected", li.dataset.repo === repo.full_name);
+  });
+
+  questDetailNameEl.textContent = repo.name;
+  questDetailDescEl.textContent = repo.description || "No description.";
+
+  const pushed = repo.pushed_at ? new Date(repo.pushed_at).toLocaleDateString() : "—";
+  const created = repo.created_at ? new Date(repo.created_at).toLocaleDateString() : "—";
+
+  questDetailMetaEl.innerHTML = "";
+  const items = [
+    ["language", repo.language || "—"],
+    ["stars", String(repo.stargazers_count || 0)],
+    ["forks", String(repo.forks_count || 0)],
+    ["created", created],
+    ["last push", pushed],
+  ];
+  for (const [key, value] of items) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    questDetailMetaEl.appendChild(dt);
+    questDetailMetaEl.appendChild(dd);
+  }
+
+  questDetailLinkEl.innerHTML = `<a href="${repo.html_url}" target="_blank" rel="noopener">&gt; View on GitHub</a>`;
+
+  // Fetch tree and compute rewards
+  const rewardsEl = document.getElementById("quest-detail-rewards");
+  rewardsEl.innerHTML = "<h4>Rewards</h4><span class='reward' style='color:var(--green-dim)'>scanning...</span>";
+  loadRewards(repo, rewardsEl);
+}
+
+async function loadRewards(repo, container) {
+  const key = repo.full_name;
+  if (!treeCache[key]) {
+    try {
+      const branch = repo.default_branch || "main";
+      const res = await fetch(
+        `https://api.github.com/repos/${repo.full_name}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        treeCache[key] = (data.tree || [])
+          .filter((e) => e.type === "blob")
+          .map((e) => e.path);
+      } else {
+        treeCache[key] = [];
+      }
+    } catch {
+      treeCache[key] = [];
+    }
+  }
+
+  const paths = treeCache[key];
+  const rewards = [];
+
+  // Language reward from repo metadata
+  const lang = repo.language;
+  if (lang && ["Python", "JavaScript", "TypeScript"].includes(lang)) {
+    rewards.push({ name: lang.toLowerCase(), stat: "INT" });
+  }
+
+  // File-based rewards
+  for (const det of REWARD_DETECTORS) {
+    if (paths.some(det.test)) {
+      rewards.push({ name: det.name, stat: det.stat });
+    }
+  }
+
+  if (rewards.length === 0) {
+    container.innerHTML = "<h4>Rewards</h4><span style='color:var(--green-dim);font-size:0.75rem'>// none detected //</span>";
+    return;
+  }
+
+  container.innerHTML = "<h4>Rewards</h4>" +
+    rewards.map((r) => `<span class="reward">${r.name}</span>`).join("");
 }

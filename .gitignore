@@ -23,3 +23,10 @@ htmlcov/
 .claude/
 *.swp
 .DS_Store
+
+# Astro frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+.astro/
+node_modules/

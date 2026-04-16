@@ -105,4 +105,9 @@ def create_app() -> FastAPI:
                 headers={"Cache-Control": "no-store"},
             )
 
+    # Clean portfolio frontend (Astro build output)
+    dist_dir = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "dist"
+    if dist_dir.exists():
+        app.mount("/v2", StaticFiles(directory=dist_dir, html=True), name="frontend-clean")
+
     return app

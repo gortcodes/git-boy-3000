@@ -1,0 +1,186 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import FlavorSection from "../components/FlavorSection.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<Base title="lethargy.io — clean view">
+  <div class="container">
+    <p class="status-msg" id="status"></p>
+
+    <Header />
+
+    <div id="stats-section" style="display:none">
+      <h2 class="section-title">S.P.E.C.I.A.L.</h2>
+      <div class="stat-grid" id="stat-grid"></div>
+    </div>
+
+    <FlavorSection />
+    <Footer />
+  </div>
+
+  <script>
+    const STAT_ORDER_V2 = ["STR", "PER", "END", "CHA", "INT", "AGI", "LUCK"];
+    const STAT_ORDER_V1 = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+    const DISPLAY_V2: Record<string, string> = {
+      STR: "Infrastructure",
+      PER: "Observability",
+      END: "Endurance",
+      CHA: "Collaboration",
+      INT: "Code",
+      AGI: "CI/CD",
+      LUCK: "AI Collaboration",
+    };
+    const DISPLAY_V1: Record<string, string> = {
+      STR: "Strength",
+      DEX: "Dexterity",
+      CON: "Constitution",
+      INT: "Intelligence",
+      WIS: "Wisdom",
+      CHA: "Charisma",
+    };
+
+    const statusEl = document.getElementById("status")!;
+    const headerEl = document.getElementById("char-header")!;
+    const avatarEl = document.getElementById("char-avatar") as HTMLImageElement;
+    const nameEl = document.getElementById("char-name")!;
+    const badgesEl = document.getElementById("char-badges")!;
+    const shareBtn = document.getElementById("share-btn")!;
+    const statsSection = document.getElementById("stats-section")!;
+    const statGrid = document.getElementById("stat-grid")!;
+    const flavorSection = document.getElementById("flavor-section")!;
+    const flavorGrid = document.getElementById("flavor-grid")!;
+
+    let currentData: any = null;
+
+    shareBtn.addEventListener("click", async () => {
+      if (!currentData) return;
+      const url = `${window.location.origin}/v2/?u=${encodeURIComponent(currentData.username)}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        shareBtn.textContent = "Copied!";
+        setTimeout(() => { shareBtn.textContent = "Share"; }, 1500);
+      } catch {}
+    });
+
+    (async function boot() {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("u");
+      if (fromUrl) { await load(fromUrl); return; }
+      try {
+        const res = await fetch("/v1/owner");
+        const d = await res.json();
+        if (d.owner) await load(d.owner);
+        else statusEl.textContent = "No owner configured";
+      } catch (e: any) {
+        statusEl.textContent = `Error: ${e.message}`;
+        statusEl.classList.add("error");
+      }
+    })();
+
+    async function load(username: string) {
+      statusEl.textContent = "";
+      try {
+        const res = await fetch(`/v1/sheet/${encodeURIComponent(username)}/raw`);
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({}));
+          throw new Error(b.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        currentData = data;
+        render(data);
+      } catch (e: any) {
+        statusEl.textContent = `Error: ${e.message}`;
+        statusEl.classList.add("error");
+      }
+    }
+
+    function render(data: any) {
+      const isV2 = data.engine_version === 2;
+
+      // Header
+      headerEl.style.display = "";
+      avatarEl.src = `https://github.com/${encodeURIComponent(data.username)}.png?size=160`;
+      nameEl.textContent = data.username;
+
+      badgesEl.innerHTML = "";
+      if (isV2) {
+        const lvl = data.character_level || 0;
+        const klass = data.class_name || "Engineer";
+        const end = data.stats.END?.level || 1;
+        const agi = data.stats.AGI?.level || 1;
+        const hp = 80 + end * 5 + (lvl - 1) * Math.floor(end / 2 + 2.5);
+        const ap = 60 + 10 * agi;
+        badgesEl.innerHTML = `
+          <span class="badge badge-level">LVL ${lvl}</span>
+          <span class="badge badge-class">${klass}</span>
+          <span class="badge badge-hp">HP ${hp}</span>
+          <span class="badge badge-ap">AP ${ap}</span>
+        `;
+      } else {
+        badgesEl.innerHTML = `<span class="badge">Engine v${data.engine_version}</span>`;
+      }
+
+      // Stats
+      statsSection.style.display = "";
+      statGrid.innerHTML = "";
+      const order = isV2 ? STAT_ORDER_V2 : STAT_ORDER_V1;
+      const display = isV2 ? DISPLAY_V2 : DISPLAY_V1;
+
+      for (const key of order) {
+        const stat = data.stats[key];
+        if (!stat) continue;
+        const value = isV2 ? stat.level : stat.value;
+        const card = document.createElement("div");
+        card.className = "stat-card";
+
+        let subsHtml = "";
+        if (isV2 && Array.isArray(stat.sub_stats)) {
+          subsHtml = `<div class="sub-stats">${stat.sub_stats
+            .map(
+              (s: any) =>
+                `<div class="sub-stat"><span class="sub-stat-name">${s.name}</span><span class="sub-stat-level">${s.level}</span></div>`
+            )
+            .join("")}</div>`;
+        } else if (!isV2 && stat.inputs) {
+          subsHtml = `<div class="sub-stats">${Object.entries(stat.inputs)
+            .map(
+              ([k, v]: [string, any]) =>
+                `<div class="sub-stat"><span class="sub-stat-name">${k}</span><span class="sub-stat-level">${typeof v === "number" ? v.toFixed(1) : v}</span></div>`
+            )
+            .join("")}</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="stat-top">
+            <span class="stat-abbr">${key}</span>
+            <span class="stat-level">${value}</span>
+          </div>
+          <div class="stat-display">${display[key] || key}</div>
+          ${subsHtml}
+        `;
+        statGrid.appendChild(card);
+      }
+
+      // Flavor
+      flavorSection.style.display = "";
+      flavorGrid.innerHTML = "";
+      const items: [string, string][] = [
+        ["Account age", `${data.flavor.account_age_days ?? 0} days`],
+        ["Activity span", `${data.flavor.activity_span_days ?? 0} days`],
+        ["Current streak", `${data.flavor.current_streak_days ?? 0} days`],
+        ["Longest streak", `${data.flavor.longest_streak_days ?? 0} days`],
+      ];
+      if (isV2) {
+        items.push(["Active weeks", `${data.flavor.weekly_active_weeks ?? 0} / 52`]);
+      }
+      for (const [label, value] of items) {
+        const div = document.createElement("div");
+        div.className = "flavor-item";
+        div.innerHTML = `<span class="flavor-label">${label}</span><span class="flavor-value">${value}</span>`;
+        flavorGrid.appendChild(div);
+      }
+    }
+  </script>
+</Base>

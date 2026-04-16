@@ -12,24 +12,13 @@
     <main class="pipboy">
       <header class="pipboy-bar">
         <div class="pipboy-title">lethargy.io</div>
-        <div class="pipboy-subtitle">dev character engine · v0</div>
       </header>
 
-      <section class="lookup">
-        <form id="lookup-form">
-          <label for="username-input">GITHUB HANDLE</label>
-          <input
-            id="username-input"
-            type="text"
-            placeholder="octocat"
-            autocomplete="off"
-            spellcheck="false"
-            required
-          />
-          <button type="submit">ROLL</button>
-        </form>
-        <p id="status" class="status"></p>
-      </section>
+      <div class="logo-container">
+        <img src="/static/logo.png" alt="lethargy.io" class="logo" />
+      </div>
+
+      <p id="status" class="status"></p>
 
       <section id="sheet" class="sheet hidden">
         <div class="crt-screen">
@@ -43,16 +32,25 @@
         </nav>
 
         <!-- Sub-tabs under STAT -->
-        <div class="sub-tab-row" id="sub-tab-row">
+        <div class="sub-tab-row" id="sub-tab-row-stat">
           <nav class="sub-tabs" role="tablist">
-            <button class="sub-tab active" data-tab="status" type="button">STATUS</button>
-            <button class="sub-tab" data-tab="special" type="button">SPECIAL</button>
-            <button class="sub-tab" data-tab="skills" type="button">SKILLS</button>
+            <button class="sub-tab active" data-sub="status" type="button">STATUS</button>
+            <button class="sub-tab" data-sub="special" type="button">SPECIAL</button>
+            <button class="sub-tab" data-sub="skills" type="button">SKILLS</button>
           </nav>
           <div class="sub-tab-meta">
             <span id="character-username" class="character-username"></span>
             <button id="share-button" type="button" class="share-btn">SHARE</button>
           </div>
+        </div>
+
+        <!-- Sub-tabs under DATA -->
+        <div class="sub-tab-row hidden" id="sub-tab-row-data">
+          <nav class="sub-tabs" role="tablist">
+            <button class="sub-tab active" data-sub="system" type="button">SYSTEM</button>
+            <button class="sub-tab" data-sub="quests" type="button">QUESTS</button>
+            <button class="sub-tab" data-sub="notes" type="button">NOTES</button>
+          </nav>
         </div>
 
         <!-- Placeholder for non-STAT top tabs -->
@@ -102,6 +100,50 @@
           </aside>
         </div>
 
+        <!-- DATA > SYSTEM sub-tab -->
+        <div class="tab-content hidden" id="tab-system">
+          <div class="data-content">
+            <h2>HOW GIT-BOY WORKS</h2>
+            <p>
+              Public GitHub profile, public events (last 30), GraphQL contribution calendar
+              (1 year), and &mdash; for the configured owner &mdash; a full walk of non-fork
+              public repos for file-tree probing (terraform, helm, docker, CI/CD configs,
+              observability configs, AI co-author trailers). A pure versioned engine
+              converts those signals into SPECIAL stats and sub-skills.
+            </p>
+            <h2>OTHER TRANSMISSIONS</h2>
+            <ul>
+              <li><a href="/docs">OpenAPI docs</a> — the full API surface</li>
+              <li><a href="/privacy">privacy &amp; data removal</a></li>
+              <li><a href="/v1/engine/versions">engine versions</a></li>
+              <li>
+                <a href="https://github.com/gortcodes/git-boy-3000" rel="noopener"
+                  >source on github</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- DATA > QUESTS sub-tab -->
+        <div class="tab-content hidden" id="tab-quests">
+          <ul class="pip-list" id="quest-list"></ul>
+          <aside class="pip-detail">
+            <div class="detail-body wide">
+              <h3 id="quest-detail-name"></h3>
+              <p id="quest-detail-desc"></p>
+              <dl id="quest-detail-meta"></dl>
+              <div id="quest-detail-rewards" class="quest-rewards"></div>
+              <p id="quest-detail-link" class="quest-link"></p>
+            </div>
+          </aside>
+        </div>
+
+        <!-- DATA > NOTES sub-tab -->
+        <div class="tab-content hidden" id="tab-notes">
+          <div class="placeholder-msg">// NO ENTRIES //</div>
+        </div>
+
         <!-- HP / LEVEL / AP status bar -->
         <footer class="status-bar">
           <span class="sb-hp">HP <span id="hp-value">--/--</span></span>
@@ -111,30 +153,6 @@
         </div>
       </section>
 
-      <section class="portfolio">
-        <h2>OTHER TRANSMISSIONS</h2>
-        <ul>
-          <li><a href="/docs">OpenAPI docs</a> — the full API surface</li>
-          <li><a href="/privacy">privacy &amp; data removal</a></li>
-          <li><a href="/v1/engine/versions">engine versions</a></li>
-          <li>
-            <a href="https://github.com/gortcodes/git-boy-3000" rel="noopener"
-              >source on github</a
-            >
-          </li>
-        </ul>
-      </section>
-
-      <section class="about">
-        <h2>HOW IT WORKS</h2>
-        <p>
-          Public GitHub profile, public events (last 30), GraphQL contribution calendar
-          (1 year), and &mdash; for the configured owner &mdash; a full walk of non-fork
-          public repos for file-tree probing (terraform, helm, docker, CI/CD configs,
-          observability configs, AI co-author trailers). A pure versioned engine
-          converts those signals into SPECIAL stats and sub-skills.
-        </p>
-      </section>
     </main>
 
     <footer class="pipboy-footer">

@@ -13,6 +13,14 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/v1/owner", tags=["config"])
+async def owner(
+    settings: Annotated[Settings, Depends(get_settings_dep)],
+) -> dict:
+    owners = sorted(settings.owner_usernames)
+    return {"owner": owners[0] if owners else None}
+
+
 @router.get("/privacy", tags=["privacy"])
 async def privacy(
     settings: Annotated[Settings, Depends(get_settings_dep)],
