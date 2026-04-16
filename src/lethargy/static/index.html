@@ -12,10 +12,10 @@
     <main class="pipboy">
       <header class="pipboy-bar">
         <div class="pipboy-title">lethargy.io</div>
-        <div class="pipboy-subtitle">developer character engine · v0</div>
+        <div class="pipboy-subtitle">dev character engine · v0</div>
       </header>
 
-      <section class="lookup" id="lookup-section">
+      <section class="lookup">
         <form id="lookup-form">
           <label for="username-input">GITHUB HANDLE</label>
           <input
@@ -32,23 +32,53 @@
       </section>
 
       <section id="sheet" class="sheet hidden">
-        <header class="character-bar">
-          <div class="character-name">
-            <span id="character-username"></span>
-            <span class="character-sep">·</span>
-            <span id="character-class" class="character-class"></span>
-          </div>
-          <nav class="pipboy-tabs" role="tablist">
-            <button class="tab active" data-tab="special" type="button">SPECIAL</button>
-            <button class="tab" data-tab="skills" type="button">SKILLS</button>
-          </nav>
-        </header>
+        <!-- Top-level tabs: STAT INV DATA MAP RADIO -->
+        <nav class="top-tabs" role="tablist">
+          <button class="top-tab active" data-top="stat" type="button">STAT</button>
+          <button class="top-tab" data-top="inv" type="button">INV</button>
+          <button class="top-tab" data-top="data" type="button">DATA</button>
+          <button class="top-tab" data-top="map" type="button">MAP</button>
+          <button class="top-tab" data-top="radio" type="button">RADIO</button>
+        </nav>
 
-        <div class="tab-content" id="tab-special">
-          <ul class="pip-list" id="stat-list"></ul>
+        <!-- Sub-tabs under STAT -->
+        <div class="sub-tab-row" id="sub-tab-row">
+          <nav class="sub-tabs" role="tablist">
+            <button class="sub-tab active" data-tab="status" type="button">STATUS</button>
+            <button class="sub-tab" data-tab="special" type="button">SPECIAL</button>
+            <button class="sub-tab" data-tab="skills" type="button">SKILLS</button>
+          </nav>
+          <div class="sub-tab-meta">
+            <span id="character-username" class="character-username"></span>
+            <button id="share-button" type="button" class="share-btn">SHARE</button>
+          </div>
+        </div>
+
+        <!-- Placeholder for non-STAT top tabs -->
+        <div class="tab-content hidden" id="tab-placeholder">
+          <div class="placeholder-msg">// NO SIGNAL //</div>
+        </div>
+
+        <!-- STATUS sub-tab -->
+        <div class="tab-content" id="tab-status">
+          <ul class="pip-list" id="status-list"></ul>
           <aside class="pip-detail">
             <div class="detail-avatar">
               <img id="avatar" alt="" />
+            </div>
+            <div class="detail-body">
+              <h3 id="status-title"></h3>
+              <p id="status-desc"></p>
+            </div>
+          </aside>
+        </div>
+
+        <!-- SPECIAL sub-tab -->
+        <div class="tab-content hidden" id="tab-special">
+          <ul class="pip-list" id="stat-list"></ul>
+          <aside class="pip-detail">
+            <div class="detail-avatar">
+              <img id="special-avatar" alt="" />
             </div>
             <div class="detail-body">
               <h3 id="stat-detail-name"></h3>
@@ -58,6 +88,7 @@
           </aside>
         </div>
 
+        <!-- SKILLS sub-tab -->
         <div class="tab-content hidden" id="tab-skills">
           <ul class="pip-list" id="skill-list"></ul>
           <aside class="pip-detail">
@@ -70,11 +101,11 @@
           </aside>
         </div>
 
-        <footer class="character-footer">
-          <span id="character-level" class="character-level"></span>
-          <span class="footer-sep"></span>
-          <span id="cache-status" class="cache-status"></span>
-          <button id="share-button" type="button">SHARE</button>
+        <!-- HP / LEVEL / AP status bar -->
+        <footer class="status-bar">
+          <span class="sb-hp">HP <span id="hp-value">--/--</span></span>
+          <span class="sb-level">LEVEL <span id="level-value">--</span></span>
+          <span class="sb-ap">AP <span id="ap-value">--</span></span>
         </footer>
       </section>
 
@@ -99,9 +130,7 @@
           (1 year), and &mdash; for the configured owner &mdash; a full walk of non-fork
           public repos for file-tree probing (terraform, helm, docker, CI/CD configs,
           observability configs, AI co-author trailers). A pure versioned engine
-          converts those signals into SPECIAL stats and sub-skills. Redis cache with
-          stale-while-revalidate, OpenTelemetry tracing, Prometheus metrics, Loki logs,
-          Grafana dashboard. All runs in docker compose on one machine.
+          converts those signals into SPECIAL stats and sub-skills.
         </p>
       </section>
     </main>

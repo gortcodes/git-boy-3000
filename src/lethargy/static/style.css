@@ -174,64 +174,134 @@ main.pipboy::before {
   display: none;
 }
 
-.character-bar {
+/* Top-level tabs: STAT INV DATA MAP RADIO */
+.top-tabs {
+  display: flex;
+  gap: 0;
   border-top: 1px solid var(--green);
   border-bottom: 1px solid var(--green);
-  padding: 0.55rem 0.85rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
   background: rgba(71, 255, 75, 0.04);
 }
 
-.character-name {
-  font-size: 1.125rem;
-  letter-spacing: 0.05em;
-  color: var(--green-bright);
-  text-shadow: var(--glow-md);
-}
-
-.character-sep {
-  color: var(--green-dim);
-  margin: 0 0.25rem;
-}
-
-.character-class {
-  color: var(--green);
-  text-transform: uppercase;
-  font-size: 0.8125rem;
-  letter-spacing: 0.15em;
-}
-
-.pipboy-tabs {
-  display: flex;
-  gap: 0;
-}
-
-.pipboy-tabs .tab {
+.top-tab {
   background: transparent;
   border: none;
   color: var(--green-dim);
   font-family: var(--mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.18em;
-  padding: 0.3rem 1.1rem;
+  font-size: 0.9375rem;
+  letter-spacing: 0.22em;
+  padding: 0.5rem 1.2rem;
   cursor: pointer;
   text-transform: uppercase;
-  border-bottom: 2px solid transparent;
   text-shadow: var(--glow-sm);
+  position: relative;
 }
 
-.pipboy-tabs .tab:hover {
+.top-tab:hover {
   color: var(--green);
 }
 
-.pipboy-tabs .tab.active {
+.top-tab.active {
   color: var(--green-bright);
-  border-bottom-color: var(--green);
   text-shadow: var(--glow-md);
+}
+
+.top-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0.5rem;
+  right: 0.5rem;
+  height: 2px;
+  background: var(--green);
+}
+
+/* Pipe separators between top tabs */
+.top-tab + .top-tab::before {
+  content: "|";
+  position: absolute;
+  left: -0.15em;
+  color: var(--green-dim);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Sub-tab row: STATUS SPECIAL SKILLS + username + share */
+.sub-tab-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--green-dim);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sub-tabs {
+  display: flex;
+  gap: 0;
+}
+
+.sub-tab {
+  background: transparent;
+  border: none;
+  color: var(--green-dim);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.18em;
+  padding: 0.2rem 0.85rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  text-shadow: var(--glow-sm);
+}
+
+.sub-tab:hover {
+  color: var(--green);
+}
+
+.sub-tab.active {
+  color: var(--green-bright);
+  text-shadow: var(--glow-md);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sub-tab-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.character-username {
+  color: var(--green);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+}
+
+.share-btn {
+  background: transparent;
+  border: 1px solid var(--green-dim);
+  color: var(--green-dim);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  text-shadow: var(--glow-sm);
+}
+
+.share-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Placeholder for non-STAT tabs */
+.placeholder-msg {
+  text-align: center;
+  color: var(--green-dim);
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  padding: 6rem 0;
 }
 
 /* === Tab content grid === */
@@ -411,55 +481,38 @@ main.pipboy::before {
   margin-top: 0.5rem !important;
 }
 
-/* === Character footer === */
+/* === HP / LEVEL / AP status bar === */
 
-.character-footer {
-  padding: 0.6rem 0.85rem;
+.status-bar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 0.8125rem;
-  color: var(--green-dim);
+  padding: 0.45rem 1rem;
+  border-top: 1px solid var(--green);
   border-bottom: 1px solid var(--green);
-  background: rgba(71, 255, 75, 0.04);
+  background: rgba(71, 255, 75, 0.06);
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
 }
 
-.character-level {
-  color: var(--green-bright);
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  text-shadow: var(--glow-md);
-}
-
-.cache-status {
-  color: var(--green-dim);
-  letter-spacing: 0.05em;
-}
-
-.footer-sep::before {
-  content: "·";
+.sb-hp,
+.sb-ap {
   color: var(--green);
-  margin: 0 0.1rem;
-}
-
-.character-footer button {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid var(--green);
-  color: var(--green);
-  padding: 0.25rem 0.85rem;
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.15em;
-  cursor: pointer;
   text-shadow: var(--glow-sm);
 }
 
-.character-footer button:hover {
-  background: var(--green);
-  color: var(--bg-dark);
-  text-shadow: none;
+.sb-hp span,
+.sb-ap span {
+  color: var(--green-bright);
+  font-weight: 700;
+}
+
+.sb-level {
+  color: var(--green-bright);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-shadow: var(--glow-md);
 }
 
 /* === Portfolio + about === */
