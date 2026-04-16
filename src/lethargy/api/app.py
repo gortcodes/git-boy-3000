@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from lethargy.api.routes import engine, health, sheet
+from lethargy.api.routes import engine, health, repos, sheet
 from lethargy.cache.github_etag import GitHubEtagCache
 from lethargy.cache.lock import Lock
 from lethargy.cache.redis import RedisClient
@@ -93,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(sheet.router)
     app.include_router(engine.router)
+    app.include_router(repos.router)
 
     static_dir = Path(__file__).resolve().parent.parent / "static"
     if static_dir.exists():

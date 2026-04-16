@@ -433,7 +433,7 @@ async function loadQuests() {
 
   try {
     const res = await fetch(
-      `https://api.github.com/users/${encodeURIComponent(currentData.username)}/repos?per_page=100&type=owner&sort=pushed`
+      `/v1/repos/${encodeURIComponent(currentData.username)}`
     );
     if (!res.ok) throw new Error(`GitHub ${res.status}`);
     const repos = await res.json();
@@ -500,15 +500,14 @@ async function loadRewards(repo, container) {
   const key = repo.full_name;
   if (!treeCache[key]) {
     try {
+      const [owner, name] = key.split("/");
       const branch = repo.default_branch || "main";
       const res = await fetch(
-        `https://api.github.com/repos/${repo.full_name}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+        `/v1/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/tree?branch=${encodeURIComponent(branch)}`
       );
       if (res.ok) {
         const data = await res.json();
-        treeCache[key] = (data.tree || [])
-          .filter((e) => e.type === "blob")
-          .map((e) => e.path);
+        treeCache[key] = data.paths || [];
       } else {
         treeCache[key] = [];
       }
