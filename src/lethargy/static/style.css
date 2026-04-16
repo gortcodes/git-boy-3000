@@ -175,12 +175,31 @@ main.pipboy::before {
 }
 
 .sheet {
+  background: #0c100d;
+  border-radius: 50px;
+  padding: 1.25rem 2rem;
+  border: 3px solid #2a3a2c;
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(71, 255, 75, 0.04);
+}
+
+.sheet:not(.hidden) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crt-screen {
   aspect-ratio: 4 / 3;
+  width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--green-dim);
-  background: rgba(5, 8, 5, 0.6);
+  border-radius: 4px;
+  background: rgba(5, 10, 5, 0.9);
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.35);
 }
 
 /* Top-level tabs: STAT INV DATA MAP RADIO */
@@ -521,9 +540,9 @@ main.pipboy::before {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.45rem 1rem;
-  border-top: 1px solid var(--green);
-  background: rgba(71, 255, 75, 0.06);
+  padding: 0.5rem 1.5rem;
+  border-top: 1px solid var(--green-dim);
+  background: rgba(43, 164, 48, 0.1);
   font-size: 0.875rem;
   letter-spacing: 0.1em;
   flex-shrink: 0;
@@ -531,22 +550,20 @@ main.pipboy::before {
 
 .sb-hp,
 .sb-ap {
-  color: var(--green);
-  text-shadow: var(--glow-sm);
+  color: var(--green-dim);
 }
 
 .sb-hp span,
 .sb-ap span {
-  color: var(--green-bright);
+  color: var(--green);
   font-weight: 700;
 }
 
 .sb-level {
-  color: var(--green-bright);
+  color: var(--green);
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: 0.12em;
-  text-shadow: var(--glow-md);
 }
 
 /* === Portfolio + about === */
