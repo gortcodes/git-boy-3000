@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    uses: gortcodes/ci-templates/.github/workflows/python-ci.yml@main
+    with:
+      python-version: "3.12"
+      test-command: "pytest -q"
+      lint: true
